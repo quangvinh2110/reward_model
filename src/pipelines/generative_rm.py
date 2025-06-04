@@ -25,6 +25,7 @@ class GenerativeRewardModel:
         backend: str,
         model_name_or_path: str,
         endpoint: Optional[str] = None,
+        served_model_name: Optional[str] = None,
         prompt_template: Optional[str] = None,
     ):
         self.backend = backend
@@ -75,13 +76,13 @@ class GenerativeRewardModel:
                 from ..modules.client import VllmClient
 
                 self.model = VllmClient(
-                    endpoint=endpoint, served_model_name=model_name_or_path
+                    endpoint=endpoint, served_model_name=served_model_name
                 )
             else:  # tgi_api
                 from ..modules.client import TgiClient
 
                 self.model = TgiClient(
-                    endpoint=endpoint, served_model_name=model_name_or_path
+                    endpoint=endpoint, served_model_name=served_model_name
                 )
 
         else:

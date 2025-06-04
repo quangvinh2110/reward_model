@@ -1,11 +1,39 @@
 #!/bin/bash
 
-# Run evaluation script with default settings
+# Run evaluation with vllm backend (default)
 python run_eval.py \
     --model_name_or_path "path/to/your/model" \
     --output_dir "./outputs" \
     --configs gsm8k math olympiadbench omnimath \
     --dataset_path "Qwen/ProcessBench"
+
+# Run evaluation with transformers backend
+# python run_eval.py \
+#     --model_name_or_path "path/to/your/model" \
+#     --model_backend "transformers" \
+#     --output_dir "./outputs" \
+#     --configs gsm8k math olympiadbench omnimath \
+#     --dataset_path "Qwen/ProcessBench"
+
+# Run evaluation with vllm_api backend
+# python run_eval.py \
+#     --model_name_or_path "path/to/your/model" \
+#     --model_backend "vllm_api" \
+#     --api_endpoint "http://localhost:8000/v1" \
+#     --served_model_name "your_model_name" \
+#     --output_dir "./outputs" \
+#     --configs gsm8k math olympiadbench omnimath \
+#     --dataset_path "Qwen/ProcessBench"
+
+# Run evaluation with tgi_api backend
+# python run_eval.py \
+#     --model_name_or_path "path/to/your/model" \
+#     --model_backend "tgi_api" \
+#     --api_endpoint "http://localhost:8080" \
+#     --served_model_name "your_model_name" \
+#     --output_dir "./outputs" \
+#     --configs gsm8k math olympiadbench omnimath \
+#     --dataset_path "Qwen/ProcessBench"
 
 # Uncomment below for voting-based evaluation
 # python run_eval.py \
