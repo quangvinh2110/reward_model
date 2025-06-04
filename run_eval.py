@@ -25,38 +25,66 @@ def main():
         nargs="+",
         default=None,
         choices=["gsm8k", "math", "olympiadbench", "omnimath"],
+        help="List of sub-datasets to evaluate on",
     )
-    parser.add_argument("--model_path", type=str, required=True)
-    parser.add_argument("--output_dir", type=str, default="./outputs")
-    parser.add_argument("--use_voting", action="store_true")
-    parser.add_argument("--voting_n", type=int, default=8)
+    parser.add_argument(
+        "--model_name_or_path",
+        type=str,
+        required=True,
+        help="Path to the model or model name",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="./outputs",
+        help="Path to save the evaluation results",
+    )
+    parser.add_argument(
+        "--use_voting",
+        action="store_true",
+        help="Whether to use voting-based evaluation",
+    )
+    parser.add_argument(
+        "--voting_n",
+        type=int,
+        default=8,
+        help="Number of voting samples",
+    )
+    parser.add_argument(
+        "--dataset_path",
+        type=str,
+        default="Qwen/ProcessBench",
+        help="Path to the dataset. Can be a local path or a HuggingFace dataset name.",
+    )
     args = parser.parse_args()
 
-    args.model_name = os.path.basename(args.model_path)
+    args.model_name = os.path.basename(args.model_name_or_path)
 
     # Initialize GenerativeRewardModel
-    model = GenerativeRewardModel(backend="vllm", model_name_or_path=args.model_path)
+    model = GenerativeRewardModel(
+        backend="vllm", model_name_or_path=args.model_name_or_path
+    )
 
     if not args.use_voting:
         generation_kwargs = {
             "temperature": 0.0,
-            "max_tokens": 32768 if "QwQ" in args.model_path else 8192,
+            "max_tokens": 32768 if "QwQ" in args.model_name_or_path else 8192,
         }
     else:
-        if "Qwen2.5-Math" in args.model_path:
+        if "Qwen2.5-Math" in args.model_name_or_path:
             generation_kwargs = {
                 "temperature": 0.7,
                 "top_p": 0.8,
                 "top_k": 20,
                 "n": args.voting_n,
-                "max_tokens": 32768 if "QwQ" in args.model_path else 8192,
+                "max_tokens": 32768 if "QwQ" in args.model_name_or_path else 8192,
             }
         else:
             generation_kwargs = {
                 "temperature": 1,
                 "top_p": 0.9,
                 "n": args.voting_n,
-                "max_tokens": 32768 if "QwQ" in args.model_path else 8192,
+                "max_tokens": 32768 if "QwQ" in args.model_name_or_path else 8192,
             }
 
     if args.configs is None:
@@ -69,7 +97,7 @@ def main():
             output_dir = os.path.join(args.output_dir, f"{args.model_name}_voting")
         os.makedirs(output_dir, exist_ok=True)
 
-        input_data = load_dataset("Qwen/ProcessBench", split=config)
+        input_data = load_dataset(args.dataset_path, split=config)
 
         # Prepare problem-solution pairs
         problem_solution_pairs = [(e["problem"], e["steps"]) for e in input_data]
