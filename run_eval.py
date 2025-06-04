@@ -3,7 +3,7 @@ import numpy as np
 import os
 import json
 from collections import Counter
-from datasets import load_dataset
+from datasets import load_from_disk
 import re
 
 from src.pipelines.generative_rm import GenerativeRewardModel
@@ -122,7 +122,7 @@ def main():
             output_dir = os.path.join(args.output_dir, f"{args.model_name}_voting")
         os.makedirs(output_dir, exist_ok=True)
 
-        input_data = load_dataset(args.dataset_path, split=config)
+        input_data = load_from_disk(os.path.join(args.dataset_path, config))
 
         # Prepare problem-solution pairs
         problem_solution_pairs = [(e["problem"], e["steps"]) for e in input_data]
@@ -135,17 +135,14 @@ def main():
             d = input_data[i].copy()
 
             if not args.use_voting:
-                pred = extract_answer(generated_critiques[i])
+                pred = extract_answer(generated_critiques[i][0])
                 try:
                     pred = int(pred)
                 except:
                     pred = None
             else:
                 # For voting, we need to handle multiple outputs
-                preds = [
-                    extract_answer(e)
-                    for e in generated_critiques[i : i + args.voting_n]
-                ]
+                preds = [extract_answer(e) for e in generated_critiques[i]]
                 preds = [e for e in preds if e is not None]
                 if len(preds) == 0:
                     pred = None
