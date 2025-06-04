@@ -2,8 +2,8 @@ import aiohttp
 import requests
 import asyncio
 import traceback
-from collections.abc import Iterable, Optional
-from typing import List
+from collections.abc import Iterable
+from typing import List, Optional
 
 from tqdm.asyncio import tqdm
 
