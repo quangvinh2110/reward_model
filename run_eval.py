@@ -17,7 +17,7 @@ def extract_answer(solution_text: str):
     return None
 
 
-def main():
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--configs",
@@ -32,6 +32,25 @@ def main():
         type=str,
         required=True,
         help="Path to the model or model name",
+    )
+    parser.add_argument(
+        "--model_backend",
+        type=str,
+        default="vllm",
+        choices=["transformers", "vllm", "vllm_api", "tgi_api"],
+        help="Backend to use for model inference",
+    )
+    parser.add_argument(
+        "--api_endpoint",
+        type=str,
+        default=None,
+        help="API endpoint URL (required for vllm_api and tgi_api backends)",
+    )
+    parser.add_argument(
+        "--served_model_name",
+        type=str,
+        default=None,
+        help="Name of the model served at the API endpoint (required for vllm_api and tgi_api backends)",
     )
     parser.add_argument(
         "--output_dir",
@@ -56,13 +75,19 @@ def main():
         default="Qwen/ProcessBench",
         help="Path to the dataset. Can be a local path or a HuggingFace dataset name.",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
+
+def main():
+    args = parse_args()
     args.model_name = os.path.basename(args.model_name_or_path)
 
     # Initialize GenerativeRewardModel
     model = GenerativeRewardModel(
-        backend="vllm", model_name_or_path=args.model_name_or_path
+        backend=args.model_backend,
+        model_name_or_path=args.model_name_or_path,
+        endpoint=args.api_endpoint,
+        served_model_name=args.served_model_name,
     )
 
     if not args.use_voting:
