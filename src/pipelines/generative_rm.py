@@ -1,7 +1,8 @@
 import torch
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Iterable
 from transformers import AutoTokenizer
 from ..utils.utils import read_txt, batch_iter
+from tqdm import tqdm
 
 
 class GenerativeRewardModel:
@@ -18,6 +19,7 @@ class GenerativeRewardModel:
         model_path (str): Path to the model or model name
         endpoint (Optional[str]): API endpoint URL (required for API types)
         prompt_template (Optional[str]): Path to prompt template file or template string
+        progress_bar (bool): Whether to show progress bar during generation
     """
 
     def __init__(
@@ -27,6 +29,7 @@ class GenerativeRewardModel:
         endpoint: Optional[str] = None,
         served_model_name: Optional[str] = None,
         prompt_template: Optional[str] = None,
+        progress_bar: bool = True,
     ):
         self.backend = backend
         self.model_name_or_path = model_name_or_path
@@ -90,6 +93,8 @@ class GenerativeRewardModel:
         else:
             raise ValueError(f"Unsupported backend: {backend}")
 
+        self.progress_bar = progress_bar
+
     def _format_prompt(self, problem: str, solution: List[str]) -> str:
         solution = "\n".join(
             [
@@ -105,6 +110,24 @@ class GenerativeRewardModel:
             tokenize=False,
             add_generation_prompt=True,
         )
+
+    def _get_batch_iterator(
+        self, items: List[str], batch_size: int = 256, desc: str = "Processing"
+    ) -> Iterable:
+        """Get a batch iterator with optional progress bar.
+
+        Args:
+            items (List[str]): List of items to iterate over
+            batch_size (int): Size of each batch
+            desc (str): Description for progress bar
+
+        Returns:
+            Iterable: Batch iterator with optional progress bar
+        """
+        iterator = batch_iter(items, batch_size=batch_size)
+        if self.progress_bar:
+            iterator = tqdm(iterator, desc=desc)
+        return iterator
 
     def _generate_transformers(
         self, prompts: List[str], **generation_kwargs
@@ -130,7 +153,9 @@ class GenerativeRewardModel:
             setattr(generation_config, key, value)
 
         all_outputs = []
-        for batch_prompts in batch_iter(prompts, batch_size=32):
+        for batch_prompts in self._get_batch_iterator(
+            prompts, desc="Generating with transformers"
+        ):
             _inputs = self.tokenizer(batch_prompts, return_tensors="pt", padding=True)
             input_ids = _inputs["input_ids"].to(self.model.device)
             attention_mask = _inputs["attention_mask"].to(self.model.device)
@@ -171,14 +196,27 @@ class GenerativeRewardModel:
         for key, value in generation_kwargs.items():
             setattr(generation_config, key, value)
 
-        outputs = self.model.generate(
-            prompts,
-            generation_config,
-        )
-        return [output.prompt + output.outputs[0].text for output in outputs]
+        all_outputs = []
+        for batch_prompts in self._get_batch_iterator(
+            prompts, desc="Generating with vLLM"
+        ):
+            outputs = self.model.generate(
+                batch_prompts,
+                generation_config,
+            )
+            all_outputs.extend(
+                [output.prompt + output.outputs[0].text for output in outputs]
+            )
+        return all_outputs
 
     def _generate_api(self, prompts: List[str], **generation_kwargs) -> List[str]:
-        return self.model(prompts, **generation_kwargs)
+        all_outputs = []
+        for batch_prompts in self._get_batch_iterator(
+            prompts, desc="Generating with API"
+        ):
+            batch_outputs = self.model(batch_prompts, **generation_kwargs)
+            all_outputs.extend(batch_outputs)
+        return all_outputs
 
     def __call__(
         self, problem_solution_pairs: List[Tuple[str, List[str]]], **generation_kwargs

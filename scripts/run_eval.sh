@@ -19,7 +19,7 @@
 python /raid/vinh/reward_model/run_eval.py \
     --model_name_or_path "/workspace/home/NLP_CORE/HUB_LLM/Meta-Llama-3.3-70B-Instruct" \
     --model_backend "vllm_api" \
-    --api_endpoint "http://10.254.138.192:9002/v1" \
+    --api_endpoint "http://10.254.138.192:9002" \
     --served_model_name "Meta-Llama-3-70B-Instruct" \
     --output_dir "/raid/vinh/resources/results" \
     --configs gsm8k math olympiadbench omnimath \

@@ -88,6 +88,7 @@ def main():
         model_name_or_path=args.model_name_or_path,
         endpoint=args.api_endpoint,
         served_model_name=args.served_model_name,
+        progress_bar=True,
     )
 
     if not args.use_voting:
