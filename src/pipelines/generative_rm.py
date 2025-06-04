@@ -37,7 +37,9 @@ class GenerativeRewardModel:
         if prompt_template:
             self.prompt_template = prompt_template
         else:
-            self.prompt_template = read_txt("/absolute/path/to/CRITIQUE.txt")
+            self.prompt_template = read_txt(
+                "/raid/vinh/reward_model/resources/prompt_templates/critique_template.txt"
+            )
 
         # Initialize model based on type
         if backend == "transformers":
