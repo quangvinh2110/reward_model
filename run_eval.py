@@ -6,7 +6,7 @@ from collections import Counter
 from datasets import load_from_disk
 import re
 
-from src.pipelines.generative_rm import GenerativeRewardModel
+from src.pipelines.generative_rm import GenerativeRewardModel, PolylithicGenerativeRM
 
 
 def extract_answer(solution_text: str):
@@ -39,6 +39,13 @@ def parse_args():
         default="vllm",
         choices=["transformers", "vllm", "vllm_api", "tgi_api"],
         help="Backend to use for model inference",
+    )
+    parser.add_argument(
+        "--reward_model_type",
+        type=str,
+        default="monolithic",
+        choices=["monolithic", "polylithic"],
+        help="Type of reward model to use (monolithic: verify full solution at once, polylithic: verify step by step)",
     )
     parser.add_argument(
         "--api_endpoint",
@@ -82,14 +89,23 @@ def main():
     args = parse_args()
     args.model_name = os.path.basename(args.model_name_or_path)
 
-    # Initialize GenerativeRewardModel
-    model = GenerativeRewardModel(
-        backend=args.model_backend,
-        model_name_or_path=args.model_name_or_path,
-        endpoint=args.api_endpoint,
-        served_model_name=args.served_model_name,
-        progress_bar=True,
-    )
+    # Initialize appropriate reward model
+    if args.reward_model_type == "monolithic":
+        model = GenerativeRewardModel(
+            backend=args.model_backend,
+            model_name_or_path=args.model_name_or_path,
+            endpoint=args.api_endpoint,
+            served_model_name=args.served_model_name,
+            progress_bar=True,
+        )
+    else:  # polylithic
+        model = PolylithicGenerativeRM(
+            backend=args.model_backend,
+            model_name_or_path=args.model_name_or_path,
+            endpoint=args.api_endpoint,
+            served_model_name=args.served_model_name,
+            progress_bar=True,
+        )
 
     if not args.use_voting:
         generation_kwargs = {
