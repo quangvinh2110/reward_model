@@ -1,46 +1,21 @@
 #!/bin/bash
-export API_KEY=<YOUR_API_KEY>
+export API_KEY=
+MODEL_NAME_OR_PATH="/workspace/home/NLP_CORE/HUB_LLM/Meta-Llama-3.3-70B-Instruct"
+MODEL_BACKEND="vllm_api"
+API_ENDPOINT="http://10.254.138.192:9002"
+SERVED_MODEL_NAME="Meta-Llama-3-70B-Instruct"
+OUTPUT_DIR="/raid/vinh/resources/results"
+CONFIGS="gsm8k math olympiadbench omnimath"
+DATASET_PATH="/raid/vinh/resources/datasets/ProcessBench"
+REWARD_MODEL_TYPE="monolithic"
 
-# Run evaluation with vllm backend (default)
-# python /raid/vinh/reward_model/run_eval.py \
-#     --model_name_or_path "path/to/your/model" \
-#     --output_dir "./outputs" \
-#     --configs gsm8k math olympiadbench omnimath \
-#     --dataset_path "Qwen/ProcessBench"
-
-# Run evaluation with transformers backend
-# python /raid/vinh/reward_model/run_eval.py \
-#     --model_name_or_path "path/to/your/model" \
-#     --model_backend "transformers" \
-#     --output_dir "./outputs" \
-#     --configs gsm8k math olympiadbench omnimath \
-#     --dataset_path "Qwen/ProcessBench"
-
-# Run evaluation with vllm_api backend
+# Run evaluation with vllm_api backend - Monolithic reward model
 python /raid/vinh/reward_model/run_eval.py \
-    --model_name_or_path "/workspace/home/NLP_CORE/HUB_LLM/Meta-Llama-3.3-70B-Instruct" \
-    --model_backend "vllm_api" \
-    --api_endpoint "http://10.254.138.192:9002" \
-    --served_model_name "Meta-Llama-3-70B-Instruct" \
-    --output_dir "/raid/vinh/resources/results" \
-    --configs gsm8k math olympiadbench omnimath \
-    --dataset_path "/raid/vinh/resources/datasets/ProcessBench"
-
-# Run evaluation with tgi_api backend
-# python /raid/vinh/reward_model/run_eval.py \
-#     --model_name_or_path "path/to/your/model" \
-#     --model_backend "tgi_api" \
-#     --api_endpoint "http://localhost:8080" \
-#     --served_model_name "your_model_name" \
-#     --output_dir "./outputs" \
-#     --configs gsm8k math olympiadbench omnimath \
-#     --dataset_path "Qwen/ProcessBench"
-
-# Uncomment below for voting-based evaluation
-# python /raid/vinh/reward_model/run_eval.py \
-#     --model_name_or_path "path/to/your/model" \
-#     --output_dir "./outputs" \
-#     --configs gsm8k math olympiadbench omnimath \
-#     --dataset_path "Qwen/ProcessBench" \
-#     --use_voting \
-#     --voting_n 8
+    --model_name_or_path $MODEL_NAME_OR_PATH \
+    --model_backend $MODEL_BACKEND \
+    --api_endpoint $API_ENDPOINT \
+    --served_model_name $SERVED_MODEL_NAME \
+    --output_dir $OUTPUT_DIR \
+    --configs $CONFIGS \
+    --dataset_path $DATASET_PATH \
+    --reward_model_type $REWARD_MODEL_TYPE
