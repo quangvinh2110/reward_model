@@ -1,0 +1,13 @@
+The following is a math problem and a partial solution (split into paragraphs, enclosed with tags, and indexed from 0 to t):
+
+[Math Problem]
+
+{problem}
+
+[Solution]
+
+{tagged_response}
+
+Your task is to review and critique only the solution step indexed as t, considering the context of the math problem and all prior steps (0 to t-1). If an error is found in step t, return 1. If no error is found in step t, return 0.
+
+Please put your final answer (i.e., 1 or 0) in \boxed{{}}.

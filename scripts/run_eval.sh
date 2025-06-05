@@ -1,4 +1,5 @@
 #!/bin/bash
+export API_KEY=<YOUR_API_KEY>
 
 # Run evaluation with vllm backend (default)
 # python /raid/vinh/reward_model/run_eval.py \
