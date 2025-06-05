@@ -133,9 +133,10 @@ class MonolithicGenerativeRM:
         Returns:
             Iterable: Batch iterator with optional progress bar
         """
+        total_batches = (len(items) + batch_size - 1) // batch_size
         iterator = batch_iter(items, batch_size=batch_size)
         if self.progress_bar:
-            iterator = tqdm(iterator, desc=desc)
+            iterator = tqdm(iterator, total=total_batches, desc=desc)
         return iterator
 
     def _generate_transformers(
