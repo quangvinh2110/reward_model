@@ -6,8 +6,6 @@ from collections import Counter
 from datasets import load_from_disk
 import re
 
-from src.pipelines.generative_rm import GenerativeRewardModel, PolylithicGenerativeRM
-
 
 def extract_answer(solution_text: str):
     boxed_pattern = r"\\boxed\{([^}]*)\}"
@@ -91,7 +89,11 @@ def main():
 
     # Initialize appropriate reward model
     if args.reward_model_type == "monolithic":
-        model = GenerativeRewardModel(
+        from src.pipelines.generative_rm import (
+            MonolithicGenerativeRM,
+        )
+
+        model = MonolithicGenerativeRM(
             backend=args.model_backend,
             model_name_or_path=args.model_name_or_path,
             endpoint=args.api_endpoint,
@@ -99,6 +101,10 @@ def main():
             progress_bar=True,
         )
     else:  # polylithic
+        from src.pipelines.generative_rm import (
+            PolylithicGenerativeRM,
+        )
+
         model = PolylithicGenerativeRM(
             backend=args.model_backend,
             model_name_or_path=args.model_name_or_path,
