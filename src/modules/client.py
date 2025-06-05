@@ -1,3 +1,4 @@
+import os
 import aiohttp
 import requests
 import asyncio
@@ -42,7 +43,14 @@ class LlmClient(ABC):
         Returns:
             List[str]: List of generated text responses
         """
-        headers = {"Content-Type": "application/json"}
+        api_key = os.getenv("API_KEY")
+        if api_key:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            }
+        else:
+            headers = {"Content-Type": "application/json"}
         try:
             async with session.post(
                 self.endpoint, headers=headers, json=data, timeout=600000

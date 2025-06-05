@@ -5,8 +5,8 @@ from ..utils.utils import read_txt, batch_iter
 from tqdm import tqdm
 
 
-class GenerativeRewardModel:
-    """A reward model that can use different model backends for generation.
+class MonolithicGenerativeRM:
+    """A generative reward model that verify full solution all at once.
 
     This class supports multiple model types:
     - transformers: Uses HuggingFace transformers directly
@@ -41,7 +41,7 @@ class GenerativeRewardModel:
             self.prompt_template = prompt_template
         else:
             self.prompt_template = read_txt(
-                "/raid/vinh/reward_model/resources/prompt_templates/CRITIQUE.txt"
+                "/raid/vinh/reward_model/resources/prompt_templates/CRITIQUE_ALL.txt"
             )
 
         # Initialize model based on type
@@ -245,3 +245,21 @@ class GenerativeRewardModel:
 
         else:  # API types
             return self._generate_api(prompts, **generation_kwargs)
+
+
+class PolylithicGenerativeRM(MonolithicGenerativeRM):
+    """A generative reward model that verify solution step by step.
+
+    This class supports multiple model types:
+    - transformers: Uses HuggingFace transformers directly
+    - vllm: Uses vLLM for inference
+    - vllm_api: Uses vLLM API client
+    - tgi_api: Uses TGI API client
+
+    Args:
+        model_type (str): Type of model to use ('transformers', 'vllm', 'vllm_api', or 'tgi_api')
+        model_path (str): Path to the model or model name
+        endpoint (Optional[str]): API endpoint URL (required for API types)
+        prompt_template (Optional[str]): Path to prompt template file or template string
+        progress_bar (bool): Whether to show progress bar during generation
+    """
