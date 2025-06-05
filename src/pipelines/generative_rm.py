@@ -1,8 +1,17 @@
+import re
 import torch
 from typing import Optional, Tuple, List, Iterable
 from transformers import AutoTokenizer
 from ..utils.utils import read_txt, batch_iter
 from tqdm import tqdm
+
+
+def extract_answer(solution_text: str):
+    boxed_pattern = r"\\boxed\{([^}]*)\}"
+    matches = re.findall(boxed_pattern, solution_text)
+    if matches:
+        return matches[-1].strip()
+    return None
 
 
 class MonolithicGenerativeRM:
@@ -96,14 +105,14 @@ class MonolithicGenerativeRM:
         self.progress_bar = progress_bar
 
     def _format_prompt(self, problem: str, solution: List[str]) -> str:
-        solution = "\n".join(
+        tagged_response = "\n".join(
             [
                 f"<paragraph_{i}>\n{step}</paragraph_{i}>\n\n"
                 for i, step in enumerate(solution)
             ]
         )
         user_prompt = self.prompt_template.format(
-            problem=problem, tagged_response=solution
+            problem=problem, tagged_response=tagged_response
         )
         return self.tokenizer.apply_chat_template(
             [{"role": "user", "content": user_prompt}],
@@ -263,3 +272,107 @@ class PolylithicGenerativeRM(MonolithicGenerativeRM):
         prompt_template (Optional[str]): Path to prompt template file or template string
         progress_bar (bool): Whether to show progress bar during generation
     """
+
+    def __init__(
+        self,
+        backend: str,
+        model_name_or_path: str,
+        endpoint: Optional[str] = None,
+        served_model_name: Optional[str] = None,
+        prompt_template: Optional[str] = None,
+        progress_bar: bool = True,
+    ):
+        super().__init__(
+            backend,
+            model_name_or_path,
+            endpoint,
+            served_model_name,
+            prompt_template,
+            progress_bar,
+        )
+        if prompt_template:
+            self.prompt_template = prompt_template
+        else:
+            self.prompt_template = read_txt(
+                "/raid/vinh/reward_model/resources/prompt_templates/CRITIQUE_ONE.txt"
+            )
+
+    def _format_prompt(self, problem: str, solution: List[str]) -> str:
+        prompts = []
+        for i in range(len(solution)):
+            tagged_response = "\n".join(
+                [
+                    f"<paragraph_{i}>\n{step}</paragraph_{i}>\n\n"
+                    for i, step in enumerate(solution[:i])
+                ]
+            )
+            user_prompt = self.prompt_template.format(
+                problem=problem, tagged_response=tagged_response
+            )
+            prompts.append(
+                self.tokenizer.apply_chat_template(
+                    [{"role": "user", "content": user_prompt}],
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
+            )
+        return prompts
+
+    def __call__(
+        self, problem_solution_pairs: List[Tuple[str, List[str]]], **generation_kwargs
+    ) -> List[str]:
+        """Generate a critique for the given problem and solution.
+
+        Args:
+            problem_solution_pairs (List[Tuple[str, List[str]]]): List of problem-solution pairs
+            **generation_kwargs: Additional generation parameters
+
+        Returns:
+            List[str]: Generated critique(s)
+        """
+        # Format prompt
+        prompts = [
+            self._format_prompt(problem, solution)
+            for problem, solution in problem_solution_pairs
+        ]
+        idx = [
+            i for i, prompt_list in enumerate(prompts) for _ in range(len(prompt_list))
+        ]
+        prompts = [prompt for prompt_list in prompts for prompt in prompt_list]
+
+        # Generate based on model type
+        if self.backend == "transformers":
+            outputs = self._generate_transformers(prompts, **generation_kwargs)
+
+        elif self.backend == "vllm":
+            outputs = self._generate_vllm(prompts, **generation_kwargs)
+
+        else:  # API types
+            outputs = self._generate_api(prompts, **generation_kwargs)
+
+        # Reformat outputs
+        reformatted_outputs = []
+        for i in range(len(outputs)):
+            if i > 0 and idx[i] == idx[i - 1]:
+                for reformatted_output, output in zip(
+                    reformatted_outputs[-1], outputs[i]
+                ):
+                    reformatted_output += "<|sep|>"
+                    reformatted_output += output
+            else:
+                reformatted_outputs.append(outputs[i])
+
+        # Extract answer
+        for output_list in reformatted_outputs:
+            for output in output_list:
+                is_correct = True
+                for i, step_critique in enumerate(output.split("<|sep|>")):
+                    answer = extract_answer(step_critique)
+                    if answer == "0":
+                        output += f"\n\nFinal answer: \\boxed{{{i}}}"
+                        is_correct = False
+                        break
+                if is_correct:
+                    output += "\n\nFinal answer: \\boxed{-1}"
+
+        return reformatted_outputs
