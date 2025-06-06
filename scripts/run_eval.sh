@@ -7,7 +7,7 @@ SERVED_MODEL_NAME="Meta-Llama-3-70B-Instruct"
 OUTPUT_DIR="/raid/vinh/resources/results"
 CONFIGS="gsm8k math olympiadbench omnimath"
 DATASET_PATH="/raid/vinh/resources/datasets/ProcessBench"
-REWARD_MODEL_TYPE="monolithic"
+REWARD_MODEL_TYPE="polylithic"
 
 # Run evaluation with vllm_api backend - Monolithic reward model
 python /raid/vinh/reward_model/run_eval.py \

@@ -121,7 +121,7 @@ class MonolithicGenerativeRM:
         )
 
     def _get_batch_iterator(
-        self, items: List[str], batch_size: int = 256, desc: str = "Processing"
+        self, items: List[str], batch_size: int = 4, desc: str = "Processing"
     ) -> Iterable:
         """Get a batch iterator with optional progress bar.
 
@@ -353,27 +353,35 @@ class PolylithicGenerativeRM(MonolithicGenerativeRM):
 
         # Reformat outputs
         reformatted_outputs = []
-        for i in range(len(outputs)):
-            if i > 0 and idx[i] == idx[i - 1]:
-                for reformatted_output, output in zip(
-                    reformatted_outputs[-1], outputs[i]
-                ):
-                    reformatted_output += "<|sep|>"
-                    reformatted_output += output
-            else:
-                reformatted_outputs.append(outputs[i])
+        current_problem_outputs = []
 
-        # Extract answer
-        for output_list in reformatted_outputs:
-            for output in output_list:
-                is_correct = True
-                for i, step_critique in enumerate(output.split("<|sep|>")):
-                    answer = extract_answer(step_critique)
+        for i, output in enumerate(outputs):
+            if i > 0 and idx[i] == idx[i - 1]:
+                # Merge outputs for the same problem
+                for j in range(len(current_problem_outputs)):
+                    current_problem_outputs[j] = (
+                        current_problem_outputs[j] + "<|sep|>" + output[j]
+                    )
+            else:
+                # Start new problem outputs
+                if current_problem_outputs:
+                    reformatted_outputs.append(current_problem_outputs)
+                current_problem_outputs = output.copy()
+
+        # Add the last problem's outputs
+        if current_problem_outputs:
+            reformatted_outputs.append(current_problem_outputs)
+
+        # Extract answer and add final answer
+        for problem_outputs in reformatted_outputs:
+            for output in problem_outputs:
+                steps = output.split("<|sep|>")
+                for i, step in enumerate(steps):
+                    answer = extract_answer(step)
                     if answer == "0":
                         output += f"\n\nFinal answer: \\boxed{{{i}}}"
-                        is_correct = False
                         break
-                if is_correct:
+                else:  # No incorrect steps found
                     output += "\n\nFinal answer: \\boxed{-1}"
 
         return reformatted_outputs
