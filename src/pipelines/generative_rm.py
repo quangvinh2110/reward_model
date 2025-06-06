@@ -358,10 +358,10 @@ class PolylithicGenerativeRM(MonolithicGenerativeRM):
         for i, output in enumerate(outputs):
             if i > 0 and idx[i] == idx[i - 1]:
                 # Merge outputs for the same problem
-                for j in range(len(current_problem_outputs)):
-                    current_problem_outputs[j] = (
-                        current_problem_outputs[j] + "<|sep|>" + output[j]
-                    )
+                current_problem_outputs = [
+                    prev + "<|sep|>" + curr
+                    for prev, curr in zip(current_problem_outputs, output)
+                ]
             else:
                 # Start new problem outputs
                 if current_problem_outputs:
@@ -373,15 +373,19 @@ class PolylithicGenerativeRM(MonolithicGenerativeRM):
             reformatted_outputs.append(current_problem_outputs)
 
         # Extract answer and add final answer
+        final_outputs = []
         for problem_outputs in reformatted_outputs:
+            new_problem_outputs = []
             for output in problem_outputs:
                 steps = output.split("<|sep|>")
-                for i, step in enumerate(steps):
-                    answer = extract_answer(step)
-                    if answer == "0":
-                        output += f"\n\nFinal answer: \\boxed{{{i}}}"
-                        break
-                else:  # No incorrect steps found
-                    output += "\n\nFinal answer: \\boxed{-1}"
+                # Find first incorrect step
+                incorrect_step = next(
+                    (i for i, step in enumerate(steps) if extract_answer(step) == "0"),
+                    -1,
+                )
+                # Add final answer
+                new_output = output + f"\n\nFinal answer: \\boxed{{{incorrect_step}}}"
+                new_problem_outputs.append(new_output)
+            final_outputs.append(new_problem_outputs)
 
-        return reformatted_outputs
+        return final_outputs
