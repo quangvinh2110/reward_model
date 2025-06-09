@@ -384,7 +384,9 @@ class PolylithicGenerativeRM(MonolithicGenerativeRM):
                     -1,
                 )
                 # Add final answer
-                new_output = output + f"\n\nFinal answer: \\boxed{{{incorrect_step}}}"
+                new_output = (
+                    output + f"<|sep|> Final answer: \\boxed{{{incorrect_step}}}"
+                )
                 new_problem_outputs.append(new_output)
             final_outputs.append(new_problem_outputs)
 

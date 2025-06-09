@@ -1,4 +1,4 @@
-The following is a math problem and a partial solution (split into paragraphs, enclosed with tags, and indexed from 0 to t):
+The following is a math problem and a partial solution (split into paragraphs, enclosed with tags, and indexed from 0):
 
 [Math Problem]
 
@@ -8,6 +8,6 @@ The following is a math problem and a partial solution (split into paragraphs, e
 
 {tagged_response}
 
-Your task is to review and critique only the last step, considering the context of the math problem and all prior steps. If an error is found in the last step, return 0. If no error is found in the last step, return 1.
+Your task is to review and critique only the last step, considering the context of the math problem and all prior steps. If an error is found in the last step, return 0. Otherwise, return 1.
 
 Please put your final answer (i.e., 1 or 0) in \boxed{{}}.
