@@ -303,8 +303,8 @@ class PolylithicGenerativeRM(MonolithicGenerativeRM):
         for i in range(len(solution)):
             tagged_response = "\n".join(
                 [
-                    f"<paragraph_{i}>\n{step}</paragraph_{i}>\n\n"
-                    for i, step in enumerate(solution[:i])
+                    f"<paragraph_{j}>\n{step}</paragraph_{j}>\n\n"
+                    for j, step in enumerate(solution[: i + 1])
                 ]
             )
             user_prompt = self.prompt_template.format(
