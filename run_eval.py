@@ -145,7 +145,11 @@ def main():
             output_dir = os.path.join(args.output_dir, f"{args.model_name}_voting")
         os.makedirs(output_dir, exist_ok=True)
 
-        input_data = load_from_disk(os.path.join(args.dataset_path, config))
+        input_data = (
+            load_from_disk(os.path.join(args.dataset_path, config))
+            .shuffle(seed=42)
+            .select(range(200))
+        )
 
         # Prepare problem-solution pairs
         problem_solution_pairs = [(e["problem"], e["steps"]) for e in input_data]
