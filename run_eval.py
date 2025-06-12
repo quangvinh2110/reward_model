@@ -148,7 +148,7 @@ def main():
         input_data = (
             load_from_disk(os.path.join(args.dataset_path, config))
             .shuffle(seed=42)
-            .select(range(200))
+            .select(range(100))
         )
 
         # Prepare problem-solution pairs
