@@ -8,7 +8,8 @@ You are an expert reasoning graph architect. Given a problem and a step-by-step 
    - The set must be the **minimal** required to verify step `t`.
 
 3. **Output Format**:  
-   - Return a JSON object with keys as step indices (integers) and values as sorted lists (ascending order).  
+   - First, for each step, provide a detailed explanation of its dependencies (see example below).
+   - Then, return a JSON object with keys as step indices (integers) and values as sorted lists (ascending order).  
    - Step `0` depends on nothing: its list is always `[]`.
 
 **Example 1**:  
@@ -18,8 +19,8 @@ Steps:
 [0] Subtract 5 from both sides: 2x = 10
 [1] Divide both sides by 2: x = 5  
 Output:  
-- Step 0 requires no prior steps.  
-- Step 1 directly uses `2x = 10` (from step 0).  
+- Step 0 performs the subtraction operation independently, so it has no dependencies.
+- Step 1 uses the simplified equation `2x = 10` (step 0) to solve for `x`, so it depends on step 0 
 ```json
 {{
   0: [],
@@ -36,10 +37,10 @@ Steps:
 [2] Calculate 5²: 25
 [3] Multiply: Area = 25π 
 Output:  
-- Step 0: No dependencies.  
-- Step 1: Uses formula from step 0.  
-- Step 2: Just calculate `5²` from step 1.  
-- Step 3: Uses `π * 5²` (from step 1) and `25` (from step 2).  
+- Step 0 introduces the formula for the area of a circle. No dependencies.
+- Step 1 substitutes the radius into the formula (step 0), so it depends on step 0 
+- Step 2 calculates the square of `5` (`5²`). No dependencies.
+- Step 3 uses `π * 5²` (from step 1) and the computed value `25` replacing `5²`(from step 2), so it depends on step 1 and 2.
 ```json
 {{
   0: [], 
@@ -56,6 +57,4 @@ Problem:
 {problem}
 
 Steps:  
-{tagged_response}
-
-Output:
+{tagged_steps}

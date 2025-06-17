@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 import re
 from ..utils import read_txt
 from .base_model import BaseGenerativeModel
@@ -49,29 +49,9 @@ class PolylithicGenerativeTracker(BaseGenerativeModel):
             )
         return prompts
 
-    def _parse_dependencies(self, generated_text: str) -> List[int]:
-        """Parse the generated text to extract step dependencies.
-
-        Expected format: "Step t depends on steps: 1, 3, 5"
-        Returns list of step indices (0-based)
-        """
-        # Extract numbers after "steps:"
-        pattern = r"steps:\s*([\d,\s]+)"
-        match = re.search(pattern, generated_text)
-        if not match:
-            return []
-
-        # Convert to list of integers (0-based)
-        try:
-            return [int(x.strip()) - 1 for x in match.group(1).split(",")]
-        except ValueError:
-            return []
-
     def __call__(
         self,
-        problem: str,
-        current_step: str,
-        previous_steps: List[str],
+        problem_solution_pairs: List[Tuple[str, List[str]]],
         **generation_kwargs,
     ) -> List[int]:
         """Predict dependencies for the current step.
@@ -86,8 +66,27 @@ class PolylithicGenerativeTracker(BaseGenerativeModel):
             List[int]: List of indices (0-based) of steps that the current step depends on
         """
         # Format prompt
-        prompt = self._format_prompt(problem, current_step, previous_steps)
+        prompts = [
+            self._format_prompt(problem, solution)
+            for problem, solution in problem_solution_pairs
+        ]
 
-        # Generate and parse dependencies
-        generated = self.generate([prompt], **generation_kwargs)[0]
-        return self._parse_dependencies(generated)
+        # Flatten prompts while keeping track of which problem they belong to
+        idx = [
+            i for i, prompt_list in enumerate(prompts) for _ in range(len(prompt_list))
+        ]
+        flat_prompts = [prompt for prompt_list in prompts for prompt in prompt_list]
+
+        # Generate dependencies
+        outputs = self.generate(flat_prompts, **generation_kwargs)
+
+        # Reformat outputs back into per-problem lists
+        reformatted_outputs = []
+        current_problem_outputs = []
+
+        for i, output in enumerate(outputs):
+            if i > 0 and idx[i] == idx[i - 1]:
+                # Merge outputs for the same problem
+                current_problem_outputs = [
+                    prev + "<|sep|>" + curr
+        return outputs

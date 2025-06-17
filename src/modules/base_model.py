@@ -225,7 +225,7 @@ class BaseGenerativeModel(ABC):
             **generation_kwargs: Additional generation parameters
 
         Returns:
-            List[str]: Generated outputs
+            List[List[str]]: Generated outputs, one list per prompt
         """
         if self.backend == "transformers":
             return self._generate_transformers(prompts, **generation_kwargs)
