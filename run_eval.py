@@ -4,15 +4,7 @@ import os
 import json
 from collections import Counter
 from datasets import load_from_disk
-import re
-
-
-def extract_answer(solution_text: str):
-    boxed_pattern = r"\\boxed\{([^}]*)\}"
-    matches = re.findall(boxed_pattern, solution_text)
-    if matches:
-        return matches[-1].strip()
-    return None
+from src.utils import extract_from_boxed
 
 
 def parse_args():
@@ -162,14 +154,14 @@ def main():
             d = input_data[i].copy()
 
             if not args.use_voting:
-                pred = extract_answer(generated_critiques[i][0])
+                pred = extract_from_boxed(generated_critiques[i][0])
                 try:
                     pred = int(pred)
                 except:
                     pred = None
             else:
                 # For voting, we need to handle multiple outputs
-                preds = [extract_answer(e) for e in generated_critiques[i]]
+                preds = [extract_from_boxed(e) for e in generated_critiques[i]]
                 preds = [e for e in preds if e is not None]
                 if len(preds) == 0:
                     pred = None

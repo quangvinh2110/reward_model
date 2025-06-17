@@ -1,5 +1,6 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 import json
+import re
 
 
 def write_jsonl(data: List[Dict], file_path: str) -> None:
@@ -39,3 +40,19 @@ def read_txt(file_path: str) -> str:
     """
     with open(file_path, "r", encoding="utf-8") as f:
         return f.read()
+
+
+def extract_from_boxed(solution_text: str) -> Optional[str]:
+    """Extract the boxed answer from solution text.
+
+    Args:
+        solution_text (str): Text containing a boxed answer
+
+    Returns:
+        Optional[str]: The extracted answer if found, None otherwise
+    """
+    boxed_pattern = r"\\boxed\{([^}]*)\}"
+    matches = re.findall(boxed_pattern, solution_text)
+    if matches:
+        return matches[-1].strip()
+    return None

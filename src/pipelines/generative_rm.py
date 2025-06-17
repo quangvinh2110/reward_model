@@ -1,23 +1,6 @@
-import re
-from typing import Optional, Tuple, List
-from ..utils import read_txt
+from typing import Tuple, List
+from ..utils import read_txt, extract_from_boxed
 from ..modules.base_model import BaseGenerativeModel
-
-
-def extract_answer(solution_text: str) -> Optional[str]:
-    """Extract the boxed answer from solution text.
-
-    Args:
-        solution_text (str): Text containing a boxed answer
-
-    Returns:
-        Optional[str]: The extracted answer if found, None otherwise
-    """
-    boxed_pattern = r"\\boxed\{([^}]*)\}"
-    matches = re.findall(boxed_pattern, solution_text)
-    if matches:
-        return matches[-1].strip()
-    return None
 
 
 class MonolithicGenerativeRM(BaseGenerativeModel):
@@ -178,7 +161,11 @@ class PolylithicGenerativeRM(BaseGenerativeModel):
                 steps = output.split("<|sep|>")
                 # Find first incorrect step
                 incorrect_step = next(
-                    (i for i, step in enumerate(steps) if extract_answer(step) == "0"),
+                    (
+                        i
+                        for i, step in enumerate(steps)
+                        if extract_from_boxed(step) == "0"
+                    ),
                     -1,
                 )
                 # Add final answer

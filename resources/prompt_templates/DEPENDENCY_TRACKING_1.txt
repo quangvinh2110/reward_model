@@ -1,0 +1,42 @@
+You are an expert reasoning graph architect. Given a problem and step-by-step solution, identify **direct dependencies** between steps using this format:
+
+### Rules:
+1. **Direct Use Only**:  
+   Include step `i` in step `t`'s dependencies **only if** step `t` explicitly uses the result, lemma, or output from step `i`. Ignore indirect dependencies.
+
+2. **Minimal & Non-Redundant**:  
+   - If step `t` uses identical information from multiple steps (e.g., the same lemma), include **only the earliest step** (smallest index).  
+   - The set must be the **minimal** required to verify step `t`.
+
+3. **Output Format**:
+   - For each step `t`:
+     - Identify ALL used result, lemma, or output with `<expression>...</expression>`
+     - Specify source step with `<step>...</step>`
+
+### Example:
+Problem: Find circle area with radius 5  
+Steps:  
+[0] Recall formula: Area = π * r²  
+[1] Plug in radius: Area = π * 5²  
+[2] Calculate 5²: 25  
+[3] Multiply: Area = 25π  
+
+Analysis:  
+- Step 0: Only states the area formula, so no dependencies. 
+- Step 1: Plug radius in <expression>Area = π * r²</expression> from <step>0</step>.
+- Step 2: Calculate <expression>5²</expression> from <step>1</step>.
+- Step 3: Plug <expression>5² = 25</expression> from <step>2</step> in <expression>Area = π * 5²</expression> from <step>1</step>.
+
+### Your Task:
+Analyze this problem and return analysis using EXACTLY the format that satisfy the rules above:
+- Step 0: ...
+- Step 1: ...
+...
+
+Problem:  
+{problem}
+
+Steps:  
+{tagged_steps}
+
+Analysis:
