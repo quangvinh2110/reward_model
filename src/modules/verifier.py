@@ -9,6 +9,7 @@ from collections import Counter
 
 
 def _verify_one_helper(args):
+    """Helper function to run _verify_one in multiprocessing."""
     _verify_one_func, i, problem, solution, generation_kwargs = args
     return _verify_one_func(i, problem, solution, **generation_kwargs)
 
@@ -132,6 +133,7 @@ class IterativeVerifierAPI(VerifierAPI):
     ) -> Tuple[int, str]:
         """Verify a single problem-solution pair with early stopping and majority voting."""
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
+        no_wrong_step = True
         for step_idx in range(len(solution)):
             tagged_solution = "\n".join(
                 [
@@ -157,6 +159,10 @@ class IterativeVerifierAPI(VerifierAPI):
             if majority == "0":
                 for result in results:
                     result.append(f"Final answer: \\boxed{{{step_idx}}}")
+                no_wrong_step = False
                 break
+        if no_wrong_step:
+            for result in results:
+                result.append("Final answer: \\boxed{-1}")
         # Return a string summarizing the results for each step
         return (id, ["<|sep|>".join(result) for result in results])
