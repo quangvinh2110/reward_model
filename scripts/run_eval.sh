@@ -7,7 +7,8 @@ SERVED_MODEL_NAME="Meta-Llama-3-70B-Instruct"
 OUTPUT_DIR="/raid/vinh/resources/results"
 CONFIGS="gsm8k math olympiadbench omnimath"
 DATASET_PATH="/raid/vinh/resources/datasets/ProcessBench"
-VERIFIER_TYPE="iterative"
+VERIFIER_TYPE="aggregative"
+# VERIFIER_TYPE="iterative"
 
 # Run evaluation with the new verifier API
 python /raid/vinh/reward_model/run_eval.py \

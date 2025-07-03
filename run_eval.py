@@ -7,6 +7,10 @@ from datasets import load_from_disk
 from src.utils.parser import parse_from_boxed
 
 
+os.environ["http_proxy"] = ""
+os.environ["https_proxy"] = ""
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(

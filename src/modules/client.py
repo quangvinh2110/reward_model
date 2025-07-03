@@ -166,7 +166,7 @@ class LlmClient(ABC):
                 )
         else:
             for prompt in prompts:
-                results.extend(self._generate_one(prompt, **generation_kwargs))
+                results.append(self._generate_one(prompt, **generation_kwargs))
         return results
 
 
