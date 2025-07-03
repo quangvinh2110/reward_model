@@ -8,6 +8,11 @@ from multiprocessing import Pool
 from collections import Counter
 
 
+def _verify_one_helper(args):
+    _verify_one_func, i, problem, solution, generation_kwargs = args
+    return _verify_one_func(i, problem, solution, **generation_kwargs)
+
+
 class VerifierAPI(ABC):
     def __init__(
         self,
@@ -68,9 +73,9 @@ class VerifierAPI(ABC):
         if not problem_solution_pairs:
             return []
 
-        # Create tasks with IDs for tracking
+        # Prepare arguments for the helper function
         tasks = [
-            lambda: self._verify_one(i, problem, solution, **generation_kwargs)
+            (self._verify_one, i, problem, solution, generation_kwargs)
             for i, (problem, solution) in enumerate(problem_solution_pairs)
         ]
 
@@ -79,12 +84,12 @@ class VerifierAPI(ABC):
             if self.show_progress:
                 results = list(
                     tqdm(
-                        pool.imap_unordered(lambda task: task(), tasks),
+                        pool.imap_unordered(_verify_one_helper, tasks),
                         total=len(tasks),
                     )
                 )
             else:
-                results = list(pool.imap_unordered(lambda task: task(), tasks))
+                results = list(pool.imap_unordered(_verify_one_helper, tasks))
 
         # Sort results by ID to maintain original order
         results.sort(key=lambda x: x[0])
