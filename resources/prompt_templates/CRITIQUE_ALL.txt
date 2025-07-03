@@ -6,7 +6,7 @@ The following is a math problem and a solution (split into paragraphs, enclosed 
 
 [Solution]
 
-{tagged_response}
+{tagged_solution}
 
 Your task is to review and critique the solution paragraph by paragraph. Once you identify an error in a paragraph, return the index of the paragraph where the earliest error occurs. Otherwise, return the index of -1 (which typically denotes "not found").
 

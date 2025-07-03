@@ -10,7 +10,7 @@ from tqdm.asyncio import tqdm
 
 from abc import ABC, abstractmethod
 
-from ..utils.utils import batch_iter
+from ..utils.io import batch_iter
 
 
 class LlmClient(ABC):
@@ -33,16 +33,36 @@ class LlmClient(ABC):
         self.endpoint = endpoint
         self.served_model_name = served_model_name
 
-    async def request(self, session, data) -> List[str]:
-        """Make an async request to the LLM API.
+    @abstractmethod
+    def _format_request_payload(self, prompt: str, **generation_kwargs) -> dict:
+        """Format the request payload for the specific LLM API.
+
+        Args:
+            prompt (str): Input prompt text
+            **generation_kwargs: Additional generation parameters
+
+        Returns:
+            dict: Formatted request payload
+        """
+        raise NotImplementedError("Subclasses must implement this method")
+
+    async def _agenerate_one(
+        self,
+        session: aiohttp.ClientSession,
+        prompt: str,
+        **generation_kwargs,
+    ) -> List[str]:
+        """Generate text for a single prompt.
 
         Args:
             session (aiohttp.ClientSession): Active aiohttp session
-            data (dict): Request payload
+            prompt (str): Input prompt text
+            **generation_kwargs: Additional generation parameters
 
         Returns:
             List[str]: List of generated text responses
         """
+        data = self._format_request_payload(prompt, **generation_kwargs)
         api_key = os.getenv("API_KEY")
         if api_key:
             headers = {
@@ -64,35 +84,7 @@ class LlmClient(ABC):
         except:
             return ["Failed: " + str(traceback.format_exc())]
 
-    @abstractmethod
-    def format_request_payload(self, prompt: str, **generation_kwargs) -> dict:
-        """Format the request payload for the specific LLM API.
-
-        Args:
-            prompt (str): Input prompt text
-            **generation_kwargs: Additional generation parameters
-
-        Returns:
-            dict: Formatted request payload
-        """
-        pass
-
-    async def generate(self, session, prompt, **generation_kwargs) -> List[str]:
-        """Generate text for a single prompt.
-
-        Args:
-            session (aiohttp.ClientSession): Active aiohttp session
-            prompt (str): Input prompt text
-            **generation_kwargs: Additional generation parameters
-
-        Returns:
-            List[str]: List of generated text responses
-        """
-        data = self.format_request_payload(prompt, **generation_kwargs)
-        resp = await self.request(session=session, data=data)
-        return resp
-
-    async def batch_generate(
+    async def _agenerate(
         self, prompts: Iterable[str], progress_bar: bool = False, **generation_kwargs
     ) -> List[List[str]]:
         """Generate text for multiple prompts in parallel.
@@ -112,7 +104,7 @@ class LlmClient(ABC):
                 for prompt in prompts:
                     tasks.append(
                         asyncio.ensure_future(
-                            self.generate(session, prompt, **generation_kwargs)
+                            self._agenerate_one(session, prompt, **generation_kwargs)
                         )
                     )
                 if progress_bar:
@@ -122,29 +114,64 @@ class LlmClient(ABC):
 
         return answers
 
-    def __call__(self, prompts: Iterable[str], **generation_kwargs) -> List[List[str]]:
+    def _generate_one(self, prompt: str, **generation_kwargs) -> List[str]:
+        """Generate text for multiple prompts using synchronous interface.
+
+        Args:
+            prompt (str): Input prompt text
+            **generation_kwargs: Additional generation parameters
+
+        Returns:
+            List[str]: List of generated text responses
+        """
+        api_key = os.getenv("API_KEY")
+        if api_key:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            }
+        else:
+            headers = {"Content-Type": "application/json"}
+        data = self._format_request_payload(prompt, **generation_kwargs)
+        resp = requests.request(
+            "POST", self.endpoint, headers=headers, json=data, timeout=600000
+        )
+        try:
+            resp = resp.json()
+            return [answer["text"] for answer in resp["choices"]]
+        except:
+            return [resp.text]
+
+    def __call__(
+        self,
+        prompts: Iterable[str],
+        run_async: bool = False,
+        **generation_kwargs,
+    ) -> List[List[str]]:
         """Generate text for multiple prompts using synchronous interface.
 
         Args:
             prompts (Iterable[str]): List of input prompts
+            run_async (bool): Whether to run the generation asynchronously
             **generation_kwargs: Additional generation parameters
 
         Returns:
             List[List[str]]: List of generated text responses for each prompt
         """
         results = []
-        for batch in batch_iter(prompts, batch_size=256):
-            results.extend(
-                asyncio.run(self.batch_generate(prompts=batch, **generation_kwargs))
-            )
+        if run_async:
+            for batch in batch_iter(prompts, batch_size=256):
+                results.extend(
+                    asyncio.run(self._agenerate(prompts=batch, **generation_kwargs))
+                )
+        else:
+            for prompt in prompts:
+                results.extend(self._generate_one(prompt, **generation_kwargs))
         return results
 
 
-class VllmClient(LlmClient):
-    """Client for vLLM API endpoints.
-
-    This client is specifically designed to work with vLLM API endpoints,
-    which provide high-performance LLM inference.
+class OpenAIClient(LlmClient):
+    """Client for OpenAI API endpoints.
 
     Args:
         endpoint (str): Base URL of the vLLM API server
@@ -160,7 +187,7 @@ class VllmClient(LlmClient):
             raise ValueError("served_model_name is required")
         super().__init__(endpoint.strip("/") + "/v1/completions", served_model_name)
 
-    def format_request_payload(self, prompt: str, **generation_kwargs) -> dict:
+    def _format_request_payload(self, prompt: str, **generation_kwargs) -> dict:
         """Format the request payload for vLLM API.
 
         Args:
@@ -185,7 +212,7 @@ class VllmClient(LlmClient):
         }
 
 
-class TgiClient(LlmClient):
+class HuggingFaceClient(LlmClient):
     """Client for Text Generation Inference (TGI) API endpoints.
 
     This client is designed to work with Hugging Face's Text Generation
@@ -203,7 +230,7 @@ class TgiClient(LlmClient):
     ):
         super().__init__(endpoint, served_model_name)
 
-    def format_request_payload(self, prompt: str, **generation_kwargs) -> dict:
+    def _format_request_payload(self, prompt: str, **generation_kwargs) -> dict:
         """Format the request payload for TGI API.
 
         Args:

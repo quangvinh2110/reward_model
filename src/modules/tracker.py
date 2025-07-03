@@ -84,9 +84,4 @@ class PolylithicGenerativeTracker(BaseGenerativeModel):
         reformatted_outputs = []
         current_problem_outputs = []
 
-        for i, output in enumerate(outputs):
-            if i > 0 and idx[i] == idx[i - 1]:
-                # Merge outputs for the same problem
-                current_problem_outputs = [
-                    prev + "<|sep|>" + curr
         return outputs

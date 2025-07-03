@@ -1,43 +1,20 @@
-You are an expert in logical dependency analysis for step-by-step problem solving.
+As an expert reasoning graph architect, your task is to identify **direct dependencies** for **only the final step** in a given problem and solution by adhering to the following rules: **1. Direct Use Only**: Include a prior step in the final step's dependencies only if the final step explicitly relies on reasoning from that step, ignoring indirect dependencies. **2. Minimal & Non-Redundant**: If the final step depends on identical reasoning from multiple steps (e.g., the same lemma), include only the earliest step (smallest index), ensuring the set is the **minimal** required to justify the final step. **3. Output Format**: For the final step, identify any results, lemmas, or outputs from previous steps that inform its reasoning, marking them with `<expression>...</expression>` and specifying the source step with `<step>...</step>`. Provide a concise explanation of the final step's dependencies in one or two short sentences. Do **not** include the results or outputs of the final step itself—only reference the dependencies from prior steps.
 
-**Task: **
-Given a problem statement, a current step t, and a window of k previous steps, identify the **direct dependencies** of step t by outputting the indexes of the previous steps that step t **explicitly and necessarily relies on**. Only include steps whose results or lemmas are directly used in step t such that, if those steps are correct, step t can be verified independently.
+### Example:
+Problem: Find circle area with radius 5
 
-**Input Format:**
-- **Problem:** [Problem description]
-- **Previous Steps:**
-  - [index-1] [Step description]
-  . . .
-  - [index-k] [Step description]
-- **Current Step:**
-  - [index-t] [Step description]
+Steps:
+[0] Recall formula: Area = π * r²
+[1] Plug in radius: Area = π * 5²
+[2] Calculate 5²: 25
+[3] Multiply: Area = 25π
 
-**Output Format:**
-- Return a list [index1, index2,...] of step indexes (e.g., [2, 5]).
-- **Only include steps directly referenced or required by step t.**
-- If no dependencies exist, return [].
-- Please put your final answer (i.e., the list) in \boxed{{}}.
-
-**Guidelines:**
-1. **Direct Dependencies Only:** Include a step only if step t explicitly uses its result, lemma, or intermediate value. Do **not** include steps that are indirectly related (e.g., earlier steps in a chain of reasoning not directly used in step t).
-2. **Minimality:** The list should be the minimal set required to verify step t.
-3. **Assume Correctness:** Assume all listed dependencies are correct; your task is to identify dependencies, not validate correctness.
-4. **Earliest-Step Priority:** If multiple steps (e.g., step i and step j, where i < j) provide identical necessary information for step t, output only i (the earliest).
-
-
-**Example:**
-Problem: Solve for x: 2x + 4 = 12
-Previous Steps:
-[0] Subtract 4 from both sides: 2x = 8
-[1] Divide both sides by 2: x = 4
-Current Step: 
-[2] Verify the solution by plugging x=4 into the original equation.
-Output: \boxed{{[1]}} (Step 3 directly depends on Step 2’s result, x=4).
+Analysis: Step 3 just plug <expression>5² = 25</expression> from <step>2</step> in <expression>Area = π * 5²</expression> from <step>1</step>.
 
 ---
 Problem: {problem}
-Previous Steps:
-{tagged_previous_steps}
-Current Step:
-{tagged_current_step}
-Output:
+
+Steps:
+{tagged_steps}
+
+Analysis:

@@ -99,12 +99,12 @@ class BaseGenerativeModel(ABC):
     @abstractmethod
     def _get_default_prompt_template(self) -> str:
         """Get the default prompt template for the model."""
-        pass
+        raise NotImplementedError("Subclasses must implement this method")
 
     @abstractmethod
     def _format_prompt(self, *args, **kwargs) -> str:
         """Format the prompt for generation."""
-        pass
+        raise NotImplementedError("Subclasses must implement this method")
 
     def _get_batch_iterator(
         self, items: List[str], batch_size: int = 4, desc: str = "Processing"
