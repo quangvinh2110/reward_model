@@ -151,11 +151,8 @@ def main():
             .select(range(100))
         )
 
-        # Prepare problem-solution pairs
-        problem_solution_pairs = [(e["problem"], e["steps"]) for e in input_data]
-
         # Generate critiques using the verifier
-        generated_critiques = verifier(problem_solution_pairs, **generation_kwargs)
+        generated_critiques = verifier(input_data.to_list(), **generation_kwargs)
 
         res_data = []
         for i in range(len(input_data)):
