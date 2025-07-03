@@ -10,8 +10,8 @@ from collections import Counter
 
 def _verify_one_helper(args):
     """Helper function to run _verify_one in multiprocessing."""
-    _verify_one_func, i, problem, solution, generation_kwargs = args
-    return _verify_one_func(i, problem, solution, **generation_kwargs)
+    _verify_one_func, i, sample, generation_kwargs = args
+    return _verify_one_func(i, sample, **generation_kwargs)
 
 
 class VerifierAPI(ABC):
@@ -59,25 +59,25 @@ class VerifierAPI(ABC):
 
     @abstractmethod
     def _verify_one(
-        self, id: int, problem: str, solution: List[str], **generation_kwargs
+        self, id: int, sample: dict, **generation_kwargs
     ) -> Tuple[int, str]:
-        """Verify a single problem-solution pair."""
+        """Verify a single sample (dictionary)."""
         raise NotImplementedError("Subclasses must implement this method")
 
     def __call__(
         self,
-        problem_solution_pairs: List[Tuple[str, List[str]]],
+        samples: List[dict],
         num_workers: int = 4,
         **generation_kwargs,
     ) -> List[str]:
-        """Verify multiple problem-solution pairs using multiprocessing."""
-        if not problem_solution_pairs:
+        """Verify multiple samples using multiprocessing."""
+        if not samples:
             return []
 
         # Prepare arguments for the helper function
         tasks = [
-            (self._verify_one, i, problem, solution, generation_kwargs)
-            for i, (problem, solution) in enumerate(problem_solution_pairs)
+            (self._verify_one, i, sample, generation_kwargs)
+            for i, sample in enumerate(samples)
         ]
 
         results = []
@@ -105,14 +105,17 @@ class AggregativeVerifierAPI(VerifierAPI):
         )
 
     def _verify_one(
-        self, id: int, problem: str, solution: List[str], **generation_kwargs
+        self, id: int, sample: dict, **generation_kwargs
     ) -> Tuple[int, str]:
-        """Verify a single problem-solution pair."""
+        """Verify a single sample (dictionary)."""
         tagged_solution = "\n".join(
-            [f"<step_{i}>\n{step}\n</step_{i}>\n\n" for i, step in enumerate(solution)]
+            [
+                f"<step_{i}>\n{step}\n</step_{i}>\n\n"
+                for i, step in enumerate(sample["steps"])
+            ]
         )
         user_input = self.prompt_template.format(
-            problem=problem, tagged_solution=tagged_solution
+            problem=sample["problem"], tagged_solution=tagged_solution
         )
         prompt = self.tokenizer.apply_chat_template(
             [{"role": "user", "content": user_input}],
@@ -129,20 +132,24 @@ class IterativeVerifierAPI(VerifierAPI):
         )
 
     def _verify_one(
-        self, id: int, problem: str, solution: List[str], **generation_kwargs
+        self, id: int, sample: dict, **generation_kwargs
     ) -> Tuple[int, str]:
-        """Verify a single problem-solution pair with early stopping and majority voting."""
+        """Verify a single sample (dictionary) with early stopping and majority voting."""
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
         no_wrong_step = True
-        for step_idx in range(len(solution)):
+        for step_idx in range(len(sample["steps"])):
+            if sample["label"] != -1 and step_idx > sample["label"]:
+                for result in results:
+                    result.append(r"Final answer: \boxed{None}")
+                break
             tagged_solution = "\n".join(
                 [
                     f"<step_{i}>\n{step}\n</step_{i}>\n\n"
-                    for i, step in enumerate(solution[: step_idx + 1])
+                    for i, step in enumerate(sample["steps"][: step_idx + 1])
                 ]
             )
             user_input = self.prompt_template.format(
-                problem=problem, tagged_solution=tagged_solution
+                problem=sample["problem"], tagged_solution=tagged_solution
             )
             prompt = self.tokenizer.apply_chat_template(
                 [{"role": "user", "content": user_input}],
