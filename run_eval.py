@@ -4,7 +4,7 @@ import os
 import json
 from collections import Counter
 from datasets import load_from_disk
-from src.utils import extract_from_boxed
+from src.utils.parser import parse_from_boxed
 
 
 def parse_args():
@@ -26,16 +26,16 @@ def parse_args():
     parser.add_argument(
         "--model_backend",
         type=str,
-        default="vllm",
-        choices=["transformers", "vllm", "vllm_api", "tgi_api"],
+        default="openai",
+        choices=["openai", "huggingface"],
         help="Backend to use for model inference",
     )
     parser.add_argument(
-        "--reward_model_type",
+        "--verifier_type",
         type=str,
-        default="monolithic",
-        choices=["monolithic", "polylithic"],
-        help="Type of reward model to use (monolithic: verify full solution at once, polylithic: verify step by step)",
+        default="aggregative",
+        choices=["aggregative", "iterative"],
+        help="Type of verifier to use (aggregative: verify full solution at once, iterative: verify step by step)",
     )
     parser.add_argument(
         "--api_endpoint",
@@ -79,30 +79,34 @@ def main():
     args = parse_args()
     args.model_name = os.path.basename(args.model_name_or_path)
 
-    # Initialize appropriate reward model
-    if args.reward_model_type == "monolithic":
-        from src.pipelines.generative_rm import (
-            MonolithicGenerativeRM,
-        )
+    # Initialize appropriate verifier
+    if args.verifier_type == "aggregative":
+        from src.modules.verifier import AggregativeVerifierAPI
 
-        model = MonolithicGenerativeRM(
-            backend=args.model_backend,
+        verifier = AggregativeVerifierAPI(
             model_name_or_path=args.model_name_or_path,
             endpoint=args.api_endpoint,
+            provider=(
+                args.model_backend
+                if args.model_backend in ["openai", "huggingface"]
+                else "openai"
+            ),
             served_model_name=args.served_model_name,
-            progress_bar=True,
+            show_progress=True,
         )
-    else:  # polylithic
-        from src.pipelines.generative_rm import (
-            PolylithicGenerativeRM,
-        )
+    else:  # iterative
+        from src.modules.verifier import IterativeVerifierAPI
 
-        model = PolylithicGenerativeRM(
-            backend=args.model_backend,
+        verifier = IterativeVerifierAPI(
             model_name_or_path=args.model_name_or_path,
             endpoint=args.api_endpoint,
+            provider=(
+                args.model_backend
+                if args.model_backend in ["openai", "huggingface"]
+                else "openai"
+            ),
             served_model_name=args.served_model_name,
-            progress_bar=True,
+            show_progress=True,
         )
 
     if not args.use_voting:
@@ -146,22 +150,22 @@ def main():
         # Prepare problem-solution pairs
         problem_solution_pairs = [(e["problem"], e["steps"]) for e in input_data]
 
-        # Generate critiques using the model
-        generated_critiques = model(problem_solution_pairs, **generation_kwargs)
+        # Generate critiques using the verifier
+        generated_critiques = verifier(problem_solution_pairs, **generation_kwargs)
 
         res_data = []
         for i in range(len(input_data)):
             d = input_data[i].copy()
 
             if not args.use_voting:
-                pred = extract_from_boxed(generated_critiques[i][0])
+                pred = parse_from_boxed(generated_critiques[i][0])
                 try:
                     pred = int(pred)
                 except:
                     pred = None
             else:
                 # For voting, we need to handle multiple outputs
-                preds = [extract_from_boxed(e) for e in generated_critiques[i]]
+                preds = [parse_from_boxed(e) for e in generated_critiques[i]]
                 preds = [e for e in preds if e is not None]
                 if len(preds) == 0:
                     pred = None

@@ -1,30 +1,25 @@
-You are an expert reasoning graph architect. Given a problem and step-by-step solution, identify **direct dependencies** between steps using this format:
-
-### Rules:
-1. **Direct Use Only**:  
-   Include step `i` in step `t`'s dependencies **only if** step `t` explicitly uses the result, lemma, or output from step `i`. Ignore indirect dependencies.
-
-2. **Minimal & Non-Redundant**:  
-   - If step `t` uses identical information from multiple steps (e.g., the same lemma), include **only the earliest step** (smallest index).  
-   - The set must be the **minimal** required to verify step `t`.
-
-3. **Output Format**:
-   - For each step `t`:
-     - Identify ALL used result, lemma, or output with `<expression>...</expression>`
-     - Specify source step with `<step>...</step>`
+As an expert reasoning graph architect, your task is to identify **direct dependencies** between steps in a given problem and solution by adhering to the following rules: **1. Direct Use Only**: Include step `i` in step `t`'s dependencies only if step `t` explicitly relies on reasoning from step `i`, ignoring indirect dependencies. **2. Minimal & Non-Redundant**: If step `t` depends on identical reasoning from multiple steps (e.g., the same lemma), include only the earliest step (smallest index), ensuring the set is the **minimal** required to justify step `t`. **3. Output Format**: For each step `t`, identify any results, lemmas, or outputs from previous steps that inform its reasoning, marking them with `<expression>...</expression>` and specifying the source step with `<step>...</step>`. **4. No Step Outputs**: Do not include the results or outputs of step `t` itself—only reference the dependencies from prior steps.
 
 ### Example:
-Problem: Find circle area with radius 5  
-Steps:  
-[0] Recall formula: Area = π * r²  
-[1] Plug in radius: Area = π * 5²  
-[2] Calculate 5²: 25  
-[3] Multiply: Area = 25π  
+Problem: Solve for x: 2x + 5 = 15
+Steps:
+[0] Subtract 5 from both sides: 2x = 10
+[1] Divide both sides by 2: x = 5
+Analysis:
+- Step 0: performs the subtraction operation from both sides.
+- Step 1: divide both sides of <expression>2x = 10</expression> from <step>0</step> by 2.
+
+Problem: Find circle area with radius 5
+Steps:
+[0] Recall formula: Area = π * r²
+[1] Plug in radius: Area = π * 5²
+[2] Calculate 5²: 25
+[3] Multiply: Area = 25π
 
 Analysis:  
 - Step 0: Only states the area formula, so no dependencies. 
 - Step 1: Plug radius in <expression>Area = π * r²</expression> from <step>0</step>.
-- Step 2: Calculate <expression>5²</expression> from <step>1</step>.
+- Step 2: Calculate 5² in <expression>Area = π * 5²</expression> from <step>1</step>.
 - Step 3: Plug <expression>5² = 25</expression> from <step>2</step> in <expression>Area = π * 5²</expression> from <step>1</step>.
 
 ### Your Task:
@@ -33,10 +28,9 @@ Analyze this problem and return analysis using EXACTLY the format that satisfy t
 - Step 1: ...
 ...
 
-Problem:  
-{problem}
+Problem: {problem}
 
-Steps:  
+Steps:
 {tagged_steps}
 
 Analysis:
