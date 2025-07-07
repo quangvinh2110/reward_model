@@ -1,4 +1,4 @@
-The following is a math problem and a solution (split into paragraphs, enclosed with tags, and indexed from 0). The solution may be partial or complete:
+The following is a math problem and a solution (split into steps, enclosed with tags, and indexed from 0). The solution may be partial or complete:
 
 [Math Problem]
 
