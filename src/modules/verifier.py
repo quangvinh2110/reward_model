@@ -21,15 +21,15 @@ class VerifierAPI(ABC):
         endpoint: str,
         provider: str,
         served_model_name: Optional[str] = None,
-        prompt_template: Optional[str] = None,
+        prompt_template_path: Optional[str] = None,
         show_progress: bool = True,
     ):
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_name_or_path, trust_remote_code=True
         )
 
-        if prompt_template:
-            self.prompt_template = prompt_template
+        if prompt_template_path:
+            self.prompt_template = read_txt(prompt_template_path)
         else:
             self.prompt_template = self._get_default_prompt_template()
 
@@ -108,6 +108,9 @@ class AggregativeVerifierAPI(VerifierAPI):
         self, id: int, sample: dict, **generation_kwargs
     ) -> Tuple[int, str]:
         """Verify a single sample (dictionary)."""
+        # Pop enable_thinking from generation_kwargs
+        enable_thinking = generation_kwargs.pop("enable_thinking", False)
+
         tagged_solution = "\n".join(
             [
                 f"<step_{i}>\n{step}\n</step_{i}>\n\n"
@@ -117,10 +120,17 @@ class AggregativeVerifierAPI(VerifierAPI):
         user_input = self.prompt_template.format(
             problem=sample["problem"], tagged_solution=tagged_solution
         )
+
+        # Apply enable_thinking conditionally
+        apply_chat_template_kwargs = {
+            "tokenize": False,
+            "add_generation_prompt": True,
+        }
+        if enable_thinking:
+            apply_chat_template_kwargs["enable_thinking"] = True
+
         prompt = self.tokenizer.apply_chat_template(
-            [{"role": "user", "content": user_input}],
-            tokenize=False,
-            add_generation_prompt=True,
+            [{"role": "user", "content": user_input}], **apply_chat_template_kwargs
         )
         return (id, self.client([prompt], **generation_kwargs)[0])
 
@@ -135,6 +145,9 @@ class IterativeVerifierAPI(VerifierAPI):
         self, id: int, sample: dict, **generation_kwargs
     ) -> Tuple[int, str]:
         """Verify a single sample (dictionary) with early stopping and majority voting."""
+        # Pop enable_thinking from generation_kwargs
+        enable_thinking = generation_kwargs.pop("enable_thinking", False)
+
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
         no_wrong_step = True
         for step_idx in range(len(sample["steps"])):
@@ -151,10 +164,17 @@ class IterativeVerifierAPI(VerifierAPI):
             user_input = self.prompt_template.format(
                 problem=sample["problem"], tagged_solution=tagged_solution
             )
+
+            # Apply enable_thinking conditionally
+            apply_chat_template_kwargs = {
+                "tokenize": False,
+                "add_generation_prompt": True,
+            }
+            if enable_thinking:
+                apply_chat_template_kwargs["enable_thinking"] = True
+
             prompt = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": user_input}],
-                tokenize=False,
-                add_generation_prompt=True,
+                [{"role": "user", "content": user_input}], **apply_chat_template_kwargs
             )
             # Generate n responses the boxed answer for this step
             step_results = self.client([prompt], **generation_kwargs)[0]
