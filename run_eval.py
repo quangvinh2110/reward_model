@@ -76,6 +76,35 @@ def parse_args():
         default="Qwen/ProcessBench",
         help="Path to the dataset. Can be a local path or a HuggingFace dataset name.",
     )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.0,
+        help="Temperature for generation (default: 0.0)",
+    )
+    parser.add_argument(
+        "--top_p",
+        type=float,
+        default=0.9,
+        help="Top-p sampling parameter (default: 0.9)",
+    )
+    parser.add_argument(
+        "--top_k",
+        type=int,
+        default=20,
+        help="Top-k sampling parameter (default: 20)",
+    )
+    parser.add_argument(
+        "--max_tokens",
+        type=int,
+        default=8192,
+        help="Maximum number of tokens to generate (default: 8192)",
+    )
+    parser.add_argument(
+        "--enable_thinking",
+        action="store_true",
+        help="Whether to enable thinking mode in tokenizer (default: False)",
+    )
     return parser.parse_args()
 
 
@@ -115,25 +144,21 @@ def main():
 
     if not args.use_voting:
         generation_kwargs = {
-            "temperature": 0.0,
-            "max_tokens": 32768 if "QwQ" in args.model_name_or_path else 8192,
+            "temperature": args.temperature,
+            "top_p": args.top_p,
+            "top_k": args.top_k,
+            "max_tokens": args.max_tokens,
+            "enable_thinking": args.enable_thinking,
         }
     else:
-        if "Qwen2.5-Math" in args.model_name_or_path:
-            generation_kwargs = {
-                "temperature": 0.7,
-                "top_p": 0.8,
-                "top_k": 20,
-                "n": args.voting_n,
-                "max_tokens": 32768 if "QwQ" in args.model_name_or_path else 8192,
-            }
-        else:
-            generation_kwargs = {
-                "temperature": 1,
-                "top_p": 0.9,
-                "n": args.voting_n,
-                "max_tokens": 32768 if "QwQ" in args.model_name_or_path else 8192,
-            }
+        generation_kwargs = {
+            "temperature": args.temperature,
+            "top_p": args.top_p,
+            "top_k": args.top_k,
+            "n": args.voting_n,
+            "max_tokens": args.max_tokens,
+            "enable_thinking": args.enable_thinking,
+        }
 
     if args.configs is None:
         args.configs = ["gsm8k", "math", "olympiadbench", "omnimath"]
