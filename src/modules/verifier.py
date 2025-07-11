@@ -6,6 +6,7 @@ from ..utils.parser import parse_from_boxed
 from tqdm import tqdm
 from multiprocessing import Pool
 from collections import Counter
+from .client import AutoLlmClient
 
 
 def _verify_one_helper(args):
@@ -19,41 +20,23 @@ class VerifierAPI(ABC):
         self,
         model_name_or_path: str,
         endpoint: str,
-        provider: str,
+        client_type: str,
         served_model_name: Optional[str] = None,
-        prompt_template_path: Optional[str] = None,
         show_progress: bool = True,
     ):
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_name_or_path, trust_remote_code=True
         )
-
-        if prompt_template_path:
-            self.prompt_template = read_txt(prompt_template_path)
-        else:
-            self.prompt_template = self._get_default_prompt_template()
-
+        self.prompt_template = self._get_prompt_template()
         self.show_progress = show_progress
-
-        if provider == "openai":
-            from .client import OpenAIClient
-
-            self.client = OpenAIClient(
-                endpoint=endpoint,
-                served_model_name=served_model_name,
-            )
-        elif provider == "huggingface":
-            from .client import HuggingFaceClient
-
-            self.client = HuggingFaceClient(
-                endpoint=endpoint,
-                served_model_name=served_model_name,
-            )
-        else:
-            raise ValueError(f"Invalid provider: {provider}")
+        self.client = AutoLlmClient.from_type(
+            client_type=client_type,
+            endpoint=endpoint,
+            served_model_name=served_model_name,
+        )
 
     @abstractmethod
-    def _get_default_prompt_template(self) -> str:
+    def _get_prompt_template(self) -> str:
         """Get the default prompt template for the model."""
         raise NotImplementedError("Subclasses must implement this method")
 
@@ -97,9 +80,9 @@ class VerifierAPI(ABC):
         return [result[1] for result in results]
 
 
-class AggregativeVerifierAPI(VerifierAPI):
+class SequentialVerifierAPI(VerifierAPI):
 
-    def _get_default_prompt_template(self) -> str:
+    def _get_prompt_template(self) -> str:
         return read_txt(
             "/raid/vinh/reward_model/resources/prompt_templates/CRITIQUE_ALL.txt"
         )
@@ -111,14 +94,14 @@ class AggregativeVerifierAPI(VerifierAPI):
         # Pop enable_thinking from generation_kwargs
         enable_thinking = generation_kwargs.pop("enable_thinking", False)
 
-        tagged_solution = "\n".join(
+        tagged_steps = "\n".join(
             [
-                f"<step_{i}>\n{step}\n</step_{i}>\n\n"
+                f"<step_{i}>\n{step}\n</step_{i}>"
                 for i, step in enumerate(sample["steps"])
             ]
         )
         user_input = self.prompt_template.format(
-            problem=sample["problem"], tagged_solution=tagged_solution
+            problem=sample["problem"], tagged_steps=tagged_steps
         )
 
         # Apply enable_thinking conditionally
@@ -135,10 +118,10 @@ class AggregativeVerifierAPI(VerifierAPI):
         return (id, self.client([prompt], **generation_kwargs)[0])
 
 
-class IterativeVerifierAPI(VerifierAPI):
-    def _get_default_prompt_template(self) -> str:
+class StepwiseVerifierAPI(VerifierAPI):
+    def _get_prompt_template(self) -> str:
         return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/CRITIQUE_ONE.txt"
+            "/raid/vinh/reward_model/resources/prompt_templates/CRITIQUE_LAST.txt"
         )
 
     def _verify_one(
@@ -147,7 +130,12 @@ class IterativeVerifierAPI(VerifierAPI):
         """Verify a single sample (dictionary) with early stopping and majority voting."""
         # Pop enable_thinking from generation_kwargs
         enable_thinking = generation_kwargs.pop("enable_thinking", False)
-
+        chat_template_kwargs = {
+            "tokenize": False,
+            "add_generation_prompt": True,
+        }
+        if enable_thinking:
+            chat_template_kwargs["enable_thinking"] = True
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
         no_wrong_step = True
         for step_idx in range(len(sample["steps"])):
@@ -155,26 +143,19 @@ class IterativeVerifierAPI(VerifierAPI):
                 for result in results:
                     result.append(r"Final answer: \boxed{None}")
                 break
-            tagged_solution = "\n".join(
+            tagged_steps = "\n".join(
                 [
-                    f"<step_{i}>\n{step}\n</step_{i}>\n\n"
+                    f"<step_{i}>\n{step}\n</step_{i}>"
                     for i, step in enumerate(sample["steps"][: step_idx + 1])
                 ]
             )
             user_input = self.prompt_template.format(
-                problem=sample["problem"], tagged_solution=tagged_solution
+                problem=sample["problem"], tagged_steps=tagged_steps
             )
 
             # Apply enable_thinking conditionally
-            apply_chat_template_kwargs = {
-                "tokenize": False,
-                "add_generation_prompt": True,
-            }
-            if enable_thinking:
-                apply_chat_template_kwargs["enable_thinking"] = True
-
             prompt = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": user_input}], **apply_chat_template_kwargs
+                [{"role": "user", "content": user_input}], **chat_template_kwargs
             )
             # Generate n responses the boxed answer for this step
             step_results = self.client([prompt], **generation_kwargs)[0]
@@ -193,3 +174,17 @@ class IterativeVerifierAPI(VerifierAPI):
                 result.append("Final answer: \\boxed{-1}")
         # Return a string summarizing the results for each step
         return (id, ["<|sep|>".join(result) for result in results])
+
+
+class AutoVerifier:
+    TYPE_MAP = {
+        "sequential": SequentialVerifierAPI,
+        "stepwise": StepwiseVerifierAPI,
+    }
+
+    @classmethod
+    def from_type(cls, verifier_type: str, **kwargs):
+        verifier_type = verifier_type.lower()
+        if verifier_type not in cls.TYPE_MAP:
+            raise ValueError(f"Unknown verifier type: {verifier_type}")
+        return cls.TYPE_MAP[verifier_type](**kwargs)

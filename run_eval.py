@@ -5,6 +5,7 @@ import json
 from collections import Counter
 from datasets import load_from_disk
 from src.utils.parser import parse_from_boxed
+from src.modules.verifier import AutoVerifier
 
 
 os.environ["http_proxy"] = ""
@@ -28,30 +29,30 @@ def parse_args():
         help="Path to the model or model name",
     )
     parser.add_argument(
-        "--model_backend",
+        "--client_type",
         type=str,
         default="openai",
         choices=["openai", "huggingface"],
-        help="Backend to use for model inference",
+        help="Type of client to use for model inference",
     )
     parser.add_argument(
         "--verifier_type",
         type=str,
-        default="aggregative",
-        choices=["aggregative", "iterative"],
-        help="Type of verifier to use (aggregative: verify full solution at once, iterative: verify step by step)",
+        default="sequential",
+        choices=["sequential", "stepwise"],
+        help="Type of verifier to use (sequential: full solution at once, stepwise: step by step)",
     )
     parser.add_argument(
         "--api_endpoint",
         type=str,
         default=None,
-        help="API endpoint URL (required for vllm_api and tgi_api backends)",
+        help="API endpoint URL",
     )
     parser.add_argument(
         "--served_model_name",
         type=str,
         default=None,
-        help="Name of the model served at the API endpoint (required for vllm_api and tgi_api backends)",
+        help="Name of the model served at the API endpoint (required for openai clients)",
     )
     parser.add_argument(
         "--output_dir",
@@ -113,34 +114,14 @@ def main():
     args.model_name = os.path.basename(args.model_name_or_path)
 
     # Initialize appropriate verifier
-    if args.verifier_type == "aggregative":
-        from src.modules.verifier import AggregativeVerifierAPI
-
-        verifier = AggregativeVerifierAPI(
-            model_name_or_path=args.model_name_or_path,
-            endpoint=args.api_endpoint,
-            provider=(
-                args.model_backend
-                if args.model_backend in ["openai", "huggingface"]
-                else "openai"
-            ),
-            served_model_name=args.served_model_name,
-            show_progress=True,
-        )
-    else:  # iterative
-        from src.modules.verifier import IterativeVerifierAPI
-
-        verifier = IterativeVerifierAPI(
-            model_name_or_path=args.model_name_or_path,
-            endpoint=args.api_endpoint,
-            provider=(
-                args.model_backend
-                if args.model_backend in ["openai", "huggingface"]
-                else "openai"
-            ),
-            served_model_name=args.served_model_name,
-            show_progress=True,
-        )
+    verifier = AutoVerifier.from_type(
+        verifier_type=args.verifier_type,
+        model_name_or_path=args.model_name_or_path,
+        endpoint=args.api_endpoint,
+        client_type=args.client_type,
+        served_model_name=args.served_model_name,
+        show_progress=True,
+    )
 
     if not args.use_voting:
         generation_kwargs = {
@@ -165,9 +146,15 @@ def main():
 
     for config in args.configs:
         if not args.use_voting:
-            output_dir = os.path.join(args.output_dir, args.model_name)
+            output_dir = os.path.join(
+                args.output_dir, args.model_name, args.verifier_type
+            )
         else:
-            output_dir = os.path.join(args.output_dir, f"{args.model_name}_voting")
+            output_dir = os.path.join(
+                args.output_dir,
+                f"{args.model_name}_voting_{args.voting_n}",
+                args.verifier_type,
+            )
         os.makedirs(output_dir, exist_ok=True)
 
         input_data = (

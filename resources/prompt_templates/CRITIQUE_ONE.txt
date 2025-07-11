@@ -6,7 +6,7 @@ The following is a math problem and a solution (split into steps, enclosed with 
 
 [Solution]
 
-{tagged_solution}
+{tagged_steps}
 
 Your task is to review and critique only step {i}, considering the context of the math problem and all prior steps. Evaluate step {i} for correctness based on its intended purpose within the solution, whether the solution is partial or complete. If an error is found in step {i}, return 0. Otherwise, return 1.
 
