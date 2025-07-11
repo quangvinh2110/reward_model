@@ -6,7 +6,7 @@ The following is a math problem and a solution (split into steps, enclosed with 
 
 [Solution]
 
-{tagged_solution}
+{tagged_steps}
 
 Your task is to review and critique the solution step by step. Once you identify an error in a step, return the index of the step where the earliest error occurs. Otherwise, return the index of -1 (which typically denotes "not found").
 

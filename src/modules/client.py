@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from ..utils.io import batch_iter
 
 
-class LlmClient(ABC):
+class AbstractLlmClient(ABC):
     """Base class for LLM API clients.
 
     This abstract base class provides common functionality for interacting with
@@ -170,7 +170,7 @@ class LlmClient(ABC):
         return results
 
 
-class OpenAIClient(LlmClient):
+class OpenAIClient(AbstractLlmClient):
     """Client for OpenAI API endpoints.
 
     Args:
@@ -212,7 +212,7 @@ class OpenAIClient(LlmClient):
         }
 
 
-class HuggingFaceClient(LlmClient):
+class HuggingFaceClient(AbstractLlmClient):
     """Client for Text Generation Inference (TGI) API endpoints.
 
     This client is designed to work with Hugging Face's Text Generation
@@ -338,6 +338,20 @@ class TeiClient:
         return response
 
 
+class AutoLlmClient:
+    TYPE_MAP = {
+        "openai": OpenAIClient,
+        "huggingface": HuggingFaceClient,
+    }
+
+    @classmethod
+    def from_type(cls, client_type: str, **kwargs):
+        client_type = client_type.lower()
+        if client_type not in cls.TYPE_MAP:
+            raise ValueError(f"Unknown client type: {client_type}")
+        return cls.TYPE_MAP[client_type](**kwargs)
+
+
 if __name__ == "__main__":
     # Test prompts
     test_prompts = [
@@ -348,7 +362,7 @@ if __name__ == "__main__":
 
     # Test VLLM client
     print("\nTesting VLLM Client:")
-    vllm_client = VllmClient(
+    vllm_client = OpenAIClient(
         endpoint="http://localhost:8000", served_model_name="llama-2-7b"
     )
     vllm_results = vllm_client(test_prompts)

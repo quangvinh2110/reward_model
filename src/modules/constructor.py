@@ -1,16 +1,144 @@
 import json
-from dataclasses import dataclass, field
+import math
+import networkx as nx
 from typing import List, Dict, Optional
-from ..utils.io import read_txt
+from abc import ABC, abstractmethod
 from transformers import AutoTokenizer
 
+from ..utils.io import read_txt
+from ..utils.parser import parse_from_json
+from .client import AutoLlmClient
 
-@dataclass
-class Node:
-    index: int
-    content: str
-    dependencies: List["Node"] = field(default_factory=list)
-    resolved: bool = False
+
+def group_index_generator(
+    n: int,
+    max_group_size: int,
+    overlap_size: int,
+):
+    if max_group_size >= n:
+        yield 0, n
+        return
+    if max_group_size < overlap_size:
+        raise ValueError("max_group_size must be greater than overlap_size")
+
+    n_groups = max(1, math.ceil((n - overlap_size) / (max_group_size - overlap_size)))
+    group_size = (n + (n_groups - 1) * overlap_size) // n_groups
+    remainder = (n + (n_groups - 1) * overlap_size) % n_groups
+    end = start = n
+    while start > 0:
+        if remainder > 0:
+            start = max(0, end - group_size - 1)
+            yield start, end
+            end = start + overlap_size
+            remainder -= 1
+        else:
+            start = max(0, end - group_size)
+            yield start, end
+            end = start + overlap_size
+
+
+class AbstractConstructor(ABC):
+    def __init__(
+        self,
+        model_name_or_path: str,
+        endpoint: str,
+        client_type: str = "openai",
+        served_model_name: Optional[str] = None,
+        show_progress: bool = True,
+    ):
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name_or_path, trust_remote_code=True
+        )
+        self.prompt_template = self._get_prompt_template()
+        self.show_progress = show_progress
+        self.client = AutoLlmClient.from_type(
+            client_type=client_type,
+            endpoint=endpoint,
+            served_model_name=served_model_name,
+        )
+
+    @abstractmethod
+    def _get_prompt_template(self) -> str:
+        """Get the default prompt template for the model."""
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @abstractmethod
+    def __call__(self, sample: dict, **generation_kwargs) -> List[Node]:
+        raise NotImplementedError("Subclasses must implement this method")
+
+
+class TargetedConstructor(AbstractConstructor):
+
+    def _get_prompt_template(self) -> str:
+        return read_txt(
+            "/raid/vinh/reward_model/resources/prompt_templates/DEPENDENCY_TRACKING_ONE.txt"
+        )
+
+    def __call__(self, sample: dict, **generation_kwargs) -> nx.DiGraph:
+        group_size = generation_kwargs.pop("group_size", len(sample["steps"]))
+        enable_thinking = generation_kwargs.pop("enable_thinking", False)
+        chat_template_kwargs = {
+            "tokenize": False,
+            "add_generation_prompt": True,
+        }
+        if enable_thinking:
+            chat_template_kwargs["enable_thinking"] = True
+        graph = nx.DiGraph()
+        graph.add_node(0, content=sample["steps"][0], resolved=True)
+        for step_idx in range(1, len(sample["steps"])):
+            graph.add_node(step_idx, content=sample["steps"][step_idx], resolved=False)
+            for start, end in group_index_generator(step_idx, group_size, 0):
+                tagged_steps = "\n".join(
+                    [
+                        f"<step_{i}>\n{sample['steps'][i]}\n</step_{i}>"
+                        for i in range(start, end)
+                    ]
+                )
+                tracked_premises = "\n".join(
+                    [
+                        f"<step_{i}>\n{graph.nodes[i]['content']}\n</step_{i}>"
+                        for i in graph.predecessors(step_idx)
+                    ]
+                )
+                user_input = self.prompt_template.format(
+                    problem=sample["problem"],
+                    tagged_steps=tagged_steps,
+                    target_step=sample["steps"][step_idx],
+                    tracked_premises=tracked_premises,
+                )
+                prompt = self.tokenizer.apply_chat_template(
+                    [{"role": "user", "content": user_input}], **chat_template_kwargs
+                )
+                output = self.client([prompt], **generation_kwargs)[0][0]
+                output = parse_from_json(output)
+                if "premises" not in output or not output["premises"]:
+                    continue
+                for prem_idx in output["premises"]:
+                    graph.add_edge(prem_idx, step_idx)
+                if "resolved" in output and output["resolved"]:
+                    graph.nodes[step_idx]["resolved"] = True
+                    break
+        return graph
+
+
+class DyadicConstructor(AbstractConstructor):
+    def _get_prompt_template(self) -> str:
+        return read_txt(
+            "/raid/vinh/reward_model/resources/prompt_templates/DEPENDENCY_TRACKING_ALL.txt"
+        )
+
+    def __call__(self, sample: dict, **generation_kwargs) -> nx.DiGraph:
+        pass
+
+
+class GroupedConstructor(AbstractConstructor):
+    def _get_prompt_template(self) -> str:
+        return read_txt(
+            "/raid/vinh/reward_model/resources/prompt_templates/DEPENDENCY_TRACKING_ALL.txt"
+        )
+
+    def __call__(self, sample: dict, **generation_kwargs) -> nx.DiGraph:
+        pass
 
 
 class Constructor:

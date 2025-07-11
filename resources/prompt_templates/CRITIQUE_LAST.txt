@@ -6,7 +6,7 @@ The following is a math problem and a solution (split into steps, enclosed with 
 
 [Solution]
 
-{tagged_solution}
+{tagged_steps}
 
 Your task is to review and critique only the last step, considering the context of the math problem and all prior steps. Evaluate the last step for correctness based on its intended purpose within the solution, whether the solution is partial or complete. The last step may not directly produce the final answer to the problem if the solution is partial; it should be assessed for accuracy in its own context. If an error is found in the last step, return 0. Otherwise, return 1.
 
