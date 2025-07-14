@@ -27,7 +27,7 @@ def parse_from_json(text: str) -> dict:
     Returns:
         Optional[str]: The extracted answer if found, None otherwise
     """
-    json_pattern = r"```json\n(.*?)\n```"
+    json_pattern = r"```json\n([\s\S]*?)\n```"
     matches = re.findall(json_pattern, text)
     try:
         return json.loads(matches[-1].strip())

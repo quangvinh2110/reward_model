@@ -4,6 +4,7 @@ import os
 import json
 from collections import Counter
 from datasets import load_from_disk
+from openai import OpenAI
 from src.utils.parser import parse_from_boxed
 from src.modules.verifier import AutoVerifier
 
@@ -23,19 +24,6 @@ def parse_args():
         help="List of sub-datasets to evaluate on",
     )
     parser.add_argument(
-        "--model_name_or_path",
-        type=str,
-        required=True,
-        help="Path to the model or model name",
-    )
-    parser.add_argument(
-        "--client_type",
-        type=str,
-        default="openai",
-        choices=["openai", "huggingface"],
-        help="Type of client to use for model inference",
-    )
-    parser.add_argument(
         "--verifier_type",
         type=str,
         default="sequential",
@@ -49,7 +37,7 @@ def parse_args():
         help="API endpoint URL",
     )
     parser.add_argument(
-        "--served_model_name",
+        "--model",
         type=str,
         default=None,
         help="Name of the model served at the API endpoint (required for openai clients)",
@@ -111,15 +99,18 @@ def parse_args():
 
 def main():
     args = parse_args()
-    args.model_name = os.path.basename(args.model_name_or_path)
+
+    # Initialize OpenAI client
+    client = OpenAI(
+        api_key=os.getenv("API_KEY"),
+        base_url=args.api_endpoint if args.api_endpoint else None,
+    )
 
     # Initialize appropriate verifier
     verifier = AutoVerifier.from_type(
         verifier_type=args.verifier_type,
-        model_name_or_path=args.model_name_or_path,
-        endpoint=args.api_endpoint,
-        client_type=args.client_type,
-        served_model_name=args.served_model_name,
+        model=args.model,
+        client=client,
         show_progress=True,
     )
 
@@ -129,7 +120,6 @@ def main():
             "top_p": args.top_p,
             "top_k": args.top_k,
             "max_tokens": args.max_tokens,
-            "enable_thinking": args.enable_thinking,
         }
     else:
         generation_kwargs = {
@@ -138,7 +128,6 @@ def main():
             "top_k": args.top_k,
             "n": args.voting_n,
             "max_tokens": args.max_tokens,
-            "enable_thinking": args.enable_thinking,
         }
 
     if args.configs is None:
@@ -146,13 +135,11 @@ def main():
 
     for config in args.configs:
         if not args.use_voting:
-            output_dir = os.path.join(
-                args.output_dir, args.model_name, args.verifier_type
-            )
+            output_dir = os.path.join(args.output_dir, args.model, args.verifier_type)
         else:
             output_dir = os.path.join(
                 args.output_dir,
-                f"{args.model_name}_voting_{args.voting_n}",
+                f"{args.model}_voting_{args.voting_n}",
                 args.verifier_type,
             )
         os.makedirs(output_dir, exist_ok=True)

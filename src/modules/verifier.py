@@ -1,12 +1,14 @@
-from typing import Optional, List, Tuple
+from typing import List, Tuple
 from abc import ABC, abstractmethod
-from transformers import AutoTokenizer
-from ..utils.io import read_txt
-from ..utils.parser import parse_from_boxed
+from openai import OpenAI
 from tqdm import tqdm
 from multiprocessing import Pool
 from collections import Counter
-from .client import AutoLlmClient
+import networkx as nx
+
+from .constructor import AutoConstructor
+from ..utils.io import read_txt
+from ..utils.parser import parse_from_boxed
 
 
 def _verify_one_helper(args):
@@ -15,25 +17,17 @@ def _verify_one_helper(args):
     return _verify_one_func(i, sample, **generation_kwargs)
 
 
-class VerifierAPI(ABC):
+class Verifier(ABC):
     def __init__(
         self,
-        model_name_or_path: str,
-        endpoint: str,
-        client_type: str,
-        served_model_name: Optional[str] = None,
+        model: str,
+        client: OpenAI,
         show_progress: bool = True,
     ):
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_name_or_path, trust_remote_code=True
-        )
+        self.model = model
+        self.client = client
         self.prompt_template = self._get_prompt_template()
         self.show_progress = show_progress
-        self.client = AutoLlmClient.from_type(
-            client_type=client_type,
-            endpoint=endpoint,
-            served_model_name=served_model_name,
-        )
 
     @abstractmethod
     def _get_prompt_template(self) -> str:
@@ -80,20 +74,17 @@ class VerifierAPI(ABC):
         return [result[1] for result in results]
 
 
-class SequentialVerifierAPI(VerifierAPI):
+class SequentialVerifier(Verifier):
 
     def _get_prompt_template(self) -> str:
         return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/CRITIQUE_ALL.txt"
+            "/raid/vinh/reward_model/resources/prompt_templates/SEQUENTIAL_VERIFICATION.txt"
         )
 
     def _verify_one(
         self, id: int, sample: dict, **generation_kwargs
     ) -> Tuple[int, str]:
         """Verify a single sample (dictionary)."""
-        # Pop enable_thinking from generation_kwargs
-        enable_thinking = generation_kwargs.pop("enable_thinking", False)
-
         tagged_steps = "\n".join(
             [
                 f"<step_{i}>\n{step}\n</step_{i}>"
@@ -103,39 +94,24 @@ class SequentialVerifierAPI(VerifierAPI):
         user_input = self.prompt_template.format(
             problem=sample["problem"], tagged_steps=tagged_steps
         )
-
-        # Apply enable_thinking conditionally
-        apply_chat_template_kwargs = {
-            "tokenize": False,
-            "add_generation_prompt": True,
-        }
-        if enable_thinking:
-            apply_chat_template_kwargs["enable_thinking"] = True
-
-        prompt = self.tokenizer.apply_chat_template(
-            [{"role": "user", "content": user_input}], **apply_chat_template_kwargs
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": user_input}],
+            **generation_kwargs,
         )
-        return (id, self.client([prompt], **generation_kwargs)[0])
+        return id, [choice.message.content for choice in response.choices]
 
 
-class StepwiseVerifierAPI(VerifierAPI):
+class StepwiseVerifier(Verifier):
     def _get_prompt_template(self) -> str:
         return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/CRITIQUE_LAST.txt"
+            "/raid/vinh/reward_model/resources/prompt_templates/STEPWISE_VERIFICATION.txt"
         )
 
     def _verify_one(
         self, id: int, sample: dict, **generation_kwargs
     ) -> Tuple[int, str]:
         """Verify a single sample (dictionary) with early stopping and majority voting."""
-        # Pop enable_thinking from generation_kwargs
-        enable_thinking = generation_kwargs.pop("enable_thinking", False)
-        chat_template_kwargs = {
-            "tokenize": False,
-            "add_generation_prompt": True,
-        }
-        if enable_thinking:
-            chat_template_kwargs["enable_thinking"] = True
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
         no_wrong_step = True
         for step_idx in range(len(sample["steps"])):
@@ -152,13 +128,13 @@ class StepwiseVerifierAPI(VerifierAPI):
             user_input = self.prompt_template.format(
                 problem=sample["problem"], tagged_steps=tagged_steps
             )
-
-            # Apply enable_thinking conditionally
-            prompt = self.tokenizer.apply_chat_template(
-                [{"role": "user", "content": user_input}], **chat_template_kwargs
+            # Create chat completion request
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": user_input}],
+                **generation_kwargs,
             )
-            # Generate n responses the boxed answer for this step
-            step_results = self.client([prompt], **generation_kwargs)[0]
+            step_results = [choice.message.content for choice in response.choices]
             for result, step_result in zip(results, step_results):
                 result.append(step_result)
             # Majority voting
@@ -172,14 +148,87 @@ class StepwiseVerifierAPI(VerifierAPI):
         if no_wrong_step:
             for result in results:
                 result.append("Final answer: \\boxed{-1}")
-        # Return a string summarizing the results for each step
         return (id, ["<|sep|>".join(result) for result in results])
+
+
+class PerlVerifier(Verifier):
+
+    def __init__(
+        self,
+        model: str,
+        client: OpenAI,
+        constructor_type: str = "targeted",
+        show_progress: bool = True,
+    ):
+        super().__init__(model, client, show_progress)
+        self.constructor = AutoConstructor.from_type(
+            constructor_type, model=model, client=client
+        )
+
+    def _get_prompt_template(self) -> str:
+        return read_txt(r"E:\AAAI-26\resources\prompt_templates\PERL_VERIFICATION.txt")
+
+    def _verify_one(
+        self, id: int, sample: dict, **generation_kwargs
+    ) -> Tuple[int, str]:
+        graph = nx.DiGraph()
+        graph.add_node(0, content=sample["steps"][0], resolved=True)
+        results = [[] for _ in range(generation_kwargs.get("n", 1))]
+        no_wrong_step = True
+        for step_idx in range(len(sample["steps"])):
+            if sample["label"] != -1 and step_idx > sample["label"]:
+                for result in results:
+                    result.append(r"Final answer: \boxed{None}")
+                break
+            graph.add_node(step_idx, content=sample["steps"][step_idx], resolved=False)
+            self.constructor._track_one_step(
+                sample, step_idx, graph, max_window_size=step_idx, **generation_kwargs
+            )
+            tracked_premises = "\n".join(
+                f"<step_{i}>\n{graph.nodes[i]['content']}\n</step_{i}>"
+                for i in graph.predecessors(step_idx)
+            )
+            target_step = (
+                f"<step_{step_idx}>\n{sample['steps'][step_idx]}\n</step_{step_idx}>"
+            )
+            user_input = self.prompt_template.format(
+                problem=sample["problem"],
+                tracked_premises=tracked_premises,
+                target_step=target_step,
+            )
+            # Create chat completion request
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": user_input}],
+                **generation_kwargs,
+            )
+            step_results = [choice.message.content for choice in response.choices]
+            for result, step_result in zip(results, step_results):
+                result.append(step_result)
+            # Majority voting
+            parsed = [parse_from_boxed(step_result) for step_result in step_results]
+            majority, _ = Counter(parsed).most_common(1)[0]
+            if majority == "0":
+                for result in results:
+                    result.append(f"Final answer: \\boxed{{{step_idx}}}")
+                no_wrong_step = False
+                break
+        if no_wrong_step:
+            for result in results:
+                result.append("Final answer: \\boxed{-1}")
+        return (id, ["<|sep|>".join(result) for result in results])
+
+
+class LogicFlowVerifier(Verifier):
+    pass
 
 
 class AutoVerifier:
     TYPE_MAP = {
-        "sequential": SequentialVerifierAPI,
-        "stepwise": StepwiseVerifierAPI,
+        "sequential": SequentialVerifier,
+        "stepwise": StepwiseVerifier,
+        "perl": PerlVerifier,
+        "logicflow": LogicFlowVerifier,
     }
 
     @classmethod
