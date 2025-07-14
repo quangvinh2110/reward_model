@@ -166,7 +166,9 @@ class PerlVerifier(Verifier):
         )
 
     def _get_prompt_template(self) -> str:
-        return read_txt(r"E:\AAAI-26\resources\prompt_templates\PERL_VERIFICATION.txt")
+        return read_txt(
+            "/raid/vinh/reward_model/resources/prompt_templates/PERL_VERIFICATION.txt"
+        )
 
     def _verify_one(
         self, id: int, sample: dict, **generation_kwargs

@@ -57,7 +57,9 @@ class AbstractConstructor(ABC):
 class TargetedConstructor(AbstractConstructor):
 
     def _get_prompt_template(self) -> str:
-        return read_txt(r"E:\AAAI-26\resources\prompt_templates\TARGETED_TRACKING.txt")
+        return read_txt(
+            "/raid/vinh/reward_model/resources/prompt_templates/TARGETED_TRACKING.txt"
+        )
 
     def _track_one_step(
         self,
@@ -117,7 +119,9 @@ class TargetedConstructor(AbstractConstructor):
 
 class GroupedConstructor(AbstractConstructor):
     def _get_prompt_template(self) -> str:
-        return read_txt(r"E:\AAAI-26\resources\prompt_templates\GROUPED_TRACKING.txt")
+        return read_txt(
+            "/raid/vinh/reward_model/resources/prompt_templates/GROUPED_TRACKING.txt"
+        )
 
     def __call__(self, sample: dict, **generation_kwargs) -> nx.DiGraph:
         graph = nx.DiGraph()
