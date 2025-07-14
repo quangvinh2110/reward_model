@@ -1,10 +1,10 @@
 import math
 import networkx as nx
 from abc import ABC, abstractmethod
-from openai import OpenAI
 
 from ..utils.io import read_txt
 from ..utils.parser import parse_from_json
+from .client import OpenaiClient
 
 
 def group_index_generator(
@@ -37,10 +37,8 @@ def group_index_generator(
 class AbstractConstructor(ABC):
     def __init__(
         self,
-        model: str,
-        client: OpenAI,
+        client: OpenaiClient,
     ):
-        self.model = model
         self.client = client
         self.prompt_template = self._get_prompt_template()
 
@@ -89,13 +87,11 @@ class TargetedConstructor(AbstractConstructor):
                 target_step=target_step,
                 tracked_premises=tracked_premises,
             )
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": user_input}],
+            response = self.client(
+                batch_messages=[[{"role": "user", "content": user_input}]],
                 **generation_kwargs,
-            )
-            output = response.choices[0].message.content
-            output = parse_from_json(output)
+            )[0][0]
+            output = parse_from_json(response)
             if "premises" not in output or not output["premises"]:
                 continue
             for prem_idx in output["premises"]:
@@ -133,13 +129,11 @@ class GroupedConstructor(AbstractConstructor):
             problem=sample["problem"],
             tagged_steps=tagged_steps,
         )
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": user_input}],
+        response = self.client(
+            batch_messages=[[{"role": "user", "content": user_input}]],
             **generation_kwargs,
-        )
-        output = response.choices[0].message.content
-        output = parse_from_json(output)
+        )[0][0]
+        output = parse_from_json(response)
         for step_idx in range(1, len(sample["steps"])):
             graph.add_node(step_idx, content=sample["steps"][step_idx], resolved=False)
             if str(step_idx) not in output:
@@ -160,11 +154,9 @@ class GroupedConstructor(AbstractConstructor):
 class HybridConstructor:
     def __init__(
         self,
-        model: str,
-        client: OpenAI,
+        client: OpenaiClient,
     ):
         self.client = client
-        self.model = model
         pass
 
     def _construct_subgraph(
@@ -177,12 +169,11 @@ class HybridConstructor:
             problem=sample["problem"],
             tagged_steps=tagged_steps,
         )
-        response = self.client.chat.completions.create(
-            messages=[{"role": "user", "content": user_input}],
+        response = self.client(
+            batch_messages=[[{"role": "user", "content": user_input}]],
             **generation_kwargs,
-        )
-        output = response.choices[0].message.content
-        output = parse_from_json(output)
+        )[0][0]
+        output = parse_from_json(response)
         for step_idx in range(start, end):
             if step_idx not in output:
                 continue

@@ -9,6 +9,7 @@ import networkx as nx
 from .constructor import AutoConstructor
 from ..utils.io import read_txt
 from ..utils.parser import parse_from_boxed
+from .client import OpenaiClient
 
 
 def _verify_one_helper(args):
@@ -20,11 +21,9 @@ def _verify_one_helper(args):
 class Verifier(ABC):
     def __init__(
         self,
-        model: str,
-        client: OpenAI,
+        client: OpenaiClient,
         show_progress: bool = True,
     ):
-        self.model = model
         self.client = client
         self.prompt_template = self._get_prompt_template()
         self.show_progress = show_progress
@@ -47,7 +46,7 @@ class Verifier(ABC):
         num_workers: int = 4,
         **generation_kwargs,
     ) -> List[str]:
-        """Verify multiple samples using multiprocessing."""
+        """Verify multiple samples using multiprocessing, or sequentially if num_workers == 1."""
         if not samples:
             return []
 
@@ -94,12 +93,11 @@ class SequentialVerifier(Verifier):
         user_input = self.prompt_template.format(
             problem=sample["problem"], tagged_steps=tagged_steps
         )
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": user_input}],
+        responses = self.client(
+            batch_messages=[[{"role": "user", "content": user_input}]],
             **generation_kwargs,
         )
-        return id, [choice.message.content for choice in response.choices]
+        return id, responses[0]
 
 
 class StepwiseVerifier(Verifier):
@@ -129,12 +127,10 @@ class StepwiseVerifier(Verifier):
                 problem=sample["problem"], tagged_steps=tagged_steps
             )
             # Create chat completion request
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": user_input}],
+            step_results = self.client(
+                batch_messages=[[{"role": "user", "content": user_input}]],
                 **generation_kwargs,
-            )
-            step_results = [choice.message.content for choice in response.choices]
+            )[0]
             for result, step_result in zip(results, step_results):
                 result.append(step_result)
             # Majority voting
@@ -155,15 +151,12 @@ class PerlVerifier(Verifier):
 
     def __init__(
         self,
-        model: str,
-        client: OpenAI,
+        client: OpenaiClient,
         constructor_type: str = "targeted",
         show_progress: bool = True,
     ):
-        super().__init__(model, client, show_progress)
-        self.constructor = AutoConstructor.from_type(
-            constructor_type, model=model, client=client
-        )
+        super().__init__(client, show_progress)
+        self.constructor = AutoConstructor.from_type(constructor_type, client=client)
 
     def _get_prompt_template(self) -> str:
         return read_txt(
@@ -199,12 +192,10 @@ class PerlVerifier(Verifier):
                 target_step=target_step,
             )
             # Create chat completion request
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": user_input}],
+            step_results = self.client(
+                batch_messages=[[{"role": "user", "content": user_input}]],
                 **generation_kwargs,
             )
-            step_results = [choice.message.content for choice in response.choices]
             for result, step_result in zip(results, step_results):
                 result.append(step_result)
             # Majority voting

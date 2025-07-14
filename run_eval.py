@@ -7,6 +7,7 @@ from datasets import load_from_disk
 from openai import OpenAI
 from src.utils.parser import parse_from_boxed
 from src.modules.verifier import AutoVerifier
+from src.modules.client import OpenaiClient
 
 
 os.environ["http_proxy"] = ""
@@ -101,15 +102,15 @@ def main():
     args = parse_args()
 
     # Initialize OpenAI client
-    client = OpenAI(
+    client = OpenaiClient(
+        endpoint=args.api_endpoint if args.api_endpoint else None,
+        model=args.model,
         api_key=os.getenv("API_KEY"),
-        base_url=args.api_endpoint if args.api_endpoint else None,
     )
 
     # Initialize appropriate verifier
     verifier = AutoVerifier.from_type(
         verifier_type=args.verifier_type,
-        model=args.model,
         client=client,
         show_progress=True,
     )
@@ -151,7 +152,9 @@ def main():
         )
 
         # Generate critiques using the verifier
-        generated_critiques = verifier(input_data.to_list(), **generation_kwargs)
+        generated_critiques = verifier(
+            input_data.to_list(), num_workers=1, **generation_kwargs
+        )
 
         res_data = []
         for i in range(len(input_data)):
