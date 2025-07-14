@@ -28,7 +28,7 @@ def parse_args():
         "--verifier_type",
         type=str,
         default="sequential",
-        choices=["sequential", "stepwise"],
+        choices=["sequential", "stepwise", "perl", "logicflow"],
         help="Type of verifier to use (sequential: full solution at once, stepwise: step by step)",
     )
     parser.add_argument(
@@ -103,7 +103,7 @@ def main():
 
     # Initialize OpenAI client
     client = OpenaiClient(
-        endpoint=args.api_endpoint if args.api_endpoint else None,
+        endpoint=args.api_endpoint,
         model=args.model,
         api_key=os.getenv("API_KEY"),
     )

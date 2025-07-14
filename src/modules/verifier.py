@@ -195,7 +195,7 @@ class PerlVerifier(Verifier):
             step_results = self.client(
                 batch_messages=[[{"role": "user", "content": user_input}]],
                 **generation_kwargs,
-            )
+            )[0]
             for result, step_result in zip(results, step_results):
                 result.append(step_result)
             # Majority voting

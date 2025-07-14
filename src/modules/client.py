@@ -29,7 +29,7 @@ class OpenaiClient:
         model: Optional[str] = None,
         api_key: Optional[str] = None,
     ):
-        self.endpoint = endpoint
+        self.endpoint = endpoint.rstrip("/") + "/v1/chat/completions"
         self.model = model
         self.api_key = api_key
 
@@ -89,7 +89,7 @@ class OpenaiClient:
             ) as resp:
                 try:
                     resp = await resp.json()
-                    return [answer["text"] for answer in resp["choices"]]
+                    return [answer["message"]["content"] for answer in resp["choices"]]
                 except:
                     resp = await resp.text()
                     return [resp]
@@ -152,7 +152,7 @@ class OpenaiClient:
         )
         try:
             resp = resp.json()
-            return [answer["text"] for answer in resp["choices"]]
+            return [answer["message"]["content"] for answer in resp["choices"]]
         except:
             return [resp.text]
 
@@ -196,7 +196,7 @@ if __name__ == "__main__":
 
     # Test VLLM client
     print("\nTesting VLLM Client:")
-    vllm_client = OpenAIClient(endpoint="http://localhost:8000", model="llama-2-7b")
+    vllm_client = OpenaiClient(endpoint="http://localhost:8000", model="llama-2-7b")
     vllm_results = vllm_client(test_prompts)
     for prompt, responses in zip(test_prompts, vllm_results):
         print(f"\nPrompt: {prompt}")
