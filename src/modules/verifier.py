@@ -172,6 +172,7 @@ class PerlVerifier(Verifier):
         no_wrong_step = True
         for step_idx in range(len(sample["steps"])):
             if sample["label"] != -1 and step_idx > sample["label"]:
+                no_wrong_step = False
                 for result in results:
                     result.append(r"Final answer: \boxed{None}")
                 break

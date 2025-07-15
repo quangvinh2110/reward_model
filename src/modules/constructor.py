@@ -67,6 +67,8 @@ class TargetedConstructor(AbstractConstructor):
         max_window_size: int = 5,
         **generation_kwargs,
     ):
+        if step_idx == 0:
+            return
         if graph.nodes[step_idx]["resolved"]:
             return
         for start_idx, end_idx in group_index_generator(step_idx, max_window_size, 0):
@@ -95,7 +97,8 @@ class TargetedConstructor(AbstractConstructor):
             if "premises" not in output or not output["premises"]:
                 continue
             for prem_idx in output["premises"]:
-                graph.add_edge(prem_idx, step_idx)
+                if prem_idx < step_idx:
+                    graph.add_edge(prem_idx, step_idx)
             if "resolved" in output and output["resolved"]:
                 graph.nodes[step_idx]["resolved"] = True
                 break
