@@ -1,9 +1,9 @@
 import math
 import networkx as nx
-from abc import ABC, abstractmethod
+from typing import Optional
 
 from ..utils.io import read_txt
-from ..utils.parser import parse_from_json
+from ..utils.data import parse_from_json, to_int
 from .client import OpenaiClient
 
 
@@ -34,57 +34,41 @@ def group_index_generator(
             end = start + overlap_size
 
 
-class AbstractConstructor(ABC):
+class TargetedConstructor:
+
     def __init__(
         self,
         client: OpenaiClient,
     ):
         self.client = client
-        self.prompt_template = self._get_prompt_template()
-
-    @abstractmethod
-    def _get_prompt_template(self) -> str:
-        """Get the default prompt template for the model."""
-        raise NotImplementedError("Subclasses must implement this method")
-
-    @abstractmethod
-    def __call__(self, sample: dict, **generation_kwargs) -> nx.DiGraph:
-        raise NotImplementedError("Subclasses must implement this method")
-
-
-class TargetedConstructor(AbstractConstructor):
-
-    def _get_prompt_template(self) -> str:
-        return read_txt(
+        self.prompt_template = read_txt(
             "/raid/vinh/reward_model/resources/prompt_templates/TARGETED_TRACKING.txt"
         )
 
     def _track_one_step(
         self,
-        sample: dict,
+        problem: str,
+        solution_graph: nx.DiGraph,
         step_idx: int,
-        graph: nx.DiGraph,
-        max_window_size: int = 5,
+        max_window_size: int,
         **generation_kwargs,
     ):
         if step_idx == 0:
             return
-        if graph.nodes[step_idx]["resolved"]:
+        if solution_graph.nodes[step_idx]["resolved"]:
             return
         for start_idx, end_idx in group_index_generator(step_idx, max_window_size, 0):
             tagged_steps = "\n".join(
-                f"<step_{i}>\n{sample['steps'][i]}\n</step_{i}>"
+                f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
                 for i in range(start_idx, end_idx)
             )
-            target_step = (
-                f"<step_{step_idx}>\n{sample['steps'][step_idx]}\n</step_{step_idx}>"
-            )
+            target_step = f"<step_{step_idx}>\n{solution_graph.nodes[step_idx]['content']}\n</step_{step_idx}>"
             tracked_premises = "\n".join(
-                f"<step_{i}>\n{graph.nodes[i]['content']}\n</step_{i}>"
-                for i in graph.predecessors(step_idx)
+                f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
+                for i in solution_graph.predecessors(step_idx)
             )
             user_input = self.prompt_template.format(
-                problem=sample["problem"],
+                problem=problem,
                 tagged_steps=tagged_steps,
                 target_step=target_step,
                 tracked_premises=tracked_premises,
@@ -97,39 +81,71 @@ class TargetedConstructor(AbstractConstructor):
             if "premises" not in output or not output["premises"]:
                 continue
             for prem_idx in output["premises"]:
-                if prem_idx < step_idx:
-                    graph.add_edge(prem_idx, step_idx)
+                prem_idx = to_int(prem_idx)
+                if prem_idx in range(start_idx, step_idx):
+                    solution_graph.add_edge(prem_idx, step_idx)
             if "resolved" in output and output["resolved"]:
-                graph.nodes[step_idx]["resolved"] = True
+                solution_graph.nodes[step_idx]["resolved"] = True
                 break
 
     def __call__(
-        self, sample: dict, max_window_size: int = 5, **generation_kwargs
+        self,
+        problem: str,
+        solution_graph: nx.DiGraph,
+        target_idx: Optional[int] = None,
+        max_window_size: Optional[int] = None,
+        **generation_kwargs,
     ) -> nx.DiGraph:
-        graph = nx.DiGraph()
-        graph.add_node(0, content=sample["steps"][0], resolved=True)
-        for step_idx in range(1, len(sample["steps"])):
-            graph.add_node(step_idx, content=sample["steps"][step_idx], resolved=False)
+        max_window_size = (
+            max_window_size if max_window_size else len(solution_graph.nodes)
+        )
+        if target_idx:
             self._track_one_step(
-                sample, step_idx, graph, max_window_size, **generation_kwargs
+                problem,
+                solution_graph,
+                target_idx,
+                max_window_size=max_window_size,
+                **generation_kwargs,
             )
-        return graph
+            return solution_graph
+        for step_idx in range(len(solution_graph.nodes)):
+            self._track_one_step(
+                problem,
+                solution_graph,
+                step_idx,
+                max_window_size=max_window_size,
+                **generation_kwargs,
+            )
+        return solution_graph
 
 
-class GroupedConstructor(AbstractConstructor):
-    def _get_prompt_template(self) -> str:
-        return read_txt(
+class GroupedConstructor:
+
+    def __init__(
+        self,
+        client: OpenaiClient,
+    ):
+        self.client = client
+        self.prompt_template = read_txt(
             "/raid/vinh/reward_model/resources/prompt_templates/GROUPED_TRACKING.txt"
         )
 
-    def __call__(self, sample: dict, **generation_kwargs) -> nx.DiGraph:
-        graph = nx.DiGraph()
-        graph.add_node(0, content=sample["steps"][0], resolved=True)
+    def __call__(
+        self,
+        problem: str,
+        solution_graph: nx.DiGraph,
+        start_idx: Optional[int] = None,
+        end_idx: Optional[int] = None,
+        **generation_kwargs,
+    ) -> nx.DiGraph:
+        start_idx = start_idx if start_idx else 0
+        end_idx = end_idx if end_idx else len(solution_graph.nodes)
         tagged_steps = "\n".join(
-            f"<step_{i}>\n{step}\n</step_{i}>" for i, step in enumerate(sample["steps"])
+            f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
+            for i in range(start_idx, end_idx)
         )
         user_input = self.prompt_template.format(
-            problem=sample["problem"],
+            problem=problem,
             tagged_steps=tagged_steps,
         )
         response = self.client(
@@ -137,8 +153,7 @@ class GroupedConstructor(AbstractConstructor):
             **generation_kwargs,
         )[0][0]
         output = parse_from_json(response)
-        for step_idx in range(1, len(sample["steps"])):
-            graph.add_node(step_idx, content=sample["steps"][step_idx], resolved=False)
+        for step_idx in range(start_idx, end_idx):
             if str(step_idx) not in output:
                 continue
             if (
@@ -147,11 +162,12 @@ class GroupedConstructor(AbstractConstructor):
             ):
                 continue
             for prem_idx in output[str(step_idx)]["premises"]:
-                if prem_idx < step_idx:
-                    graph.add_edge(prem_idx, step_idx)
+                prem_idx = to_int(prem_idx)
+                if prem_idx in range(start_idx, step_idx):
+                    solution_graph.add_edge(prem_idx, step_idx)
             if "resolved" in output[str(step_idx)]:
-                graph.nodes[step_idx]["resolved"] = True
-        return graph
+                solution_graph.nodes[step_idx]["resolved"] = True
+        return solution_graph
 
 
 class HybridConstructor:
@@ -160,54 +176,26 @@ class HybridConstructor:
         client: OpenaiClient,
     ):
         self.client = client
+        self.grouped_constructor = GroupedConstructor(client)
+        self.targeted_constructor = TargetedConstructor(client)
+
+    def _construct_local(
+        self,
+        problem: str,
+        solution_graph: nx.DiGraph,
+        start: int,
+        end: int,
+        **generation_kwargs,
+    ):
         pass
 
-    def _construct_subgraph(
-        self, sample: dict, start: int, end: int, graph: nx.DiGraph, **generation_kwargs
-    ):
-        tagged_steps = "\n".join(
-            f"<step_{i}>\n{sample['steps'][i]}\n</step_{i}>" for i in range(start, end)
-        )
-        user_input = self.grouped_prompt_template.format(
-            problem=sample["problem"],
-            tagged_steps=tagged_steps,
-        )
-        response = self.client(
-            batch_messages=[[{"role": "user", "content": user_input}]],
-            **generation_kwargs,
-        )[0][0]
-        output = parse_from_json(response)
-        for step_idx in range(start, end):
-            if step_idx not in output:
-                continue
-            if "premises" not in output[step_idx] or not output[step_idx]["premises"]:
-                continue
-            for prem_idx in output[step_idx]["premises"]:
-                if prem_idx < step_idx:
-                    graph.add_edge(prem_idx, step_idx)
-            if "resolved" in output[step_idx] and output[step_idx]["resolved"]:
-                graph.nodes[step_idx]["resolved"] = True
-
-    def __call__(self, sample: dict, **generation_kwargs) -> nx.DiGraph:
-        max_window_size = generation_kwargs.pop("max_window_size", len(sample["steps"]))
-        overlap_size = generation_kwargs.pop("overlap_size", 1)
-        graph = nx.DiGraph()
-        for step_idx in range(len(sample["steps"])):
-            graph.add_node(step_idx, content=sample["steps"][step_idx], resolved=False)
-        graph.nodes[0]["resolved"] = True
-        for start_idx, end_idx in group_index_generator(
-            len(sample["steps"]), max_window_size, overlap_size
-        ):
-            self._construct_subgraph(
-                sample, start_idx, end_idx, graph, **generation_kwargs
-            )
-        for step_idx in range(1, len(sample["steps"])):
-            if graph.nodes[step_idx]["resolved"]:
-                continue
-            self._construct_subgraph(
-                sample, step_idx, step_idx + 1, graph, **generation_kwargs
-            )
-        return graph
+    def __call__(
+        self,
+        problem: str,
+        solution_graph: nx.DiGraph,
+        **generation_kwargs,
+    ) -> nx.DiGraph:
+        pass
 
 
 class AutoConstructor:

@@ -1,5 +1,6 @@
 import re
 import json
+from typing import Any
 
 
 def parse_from_boxed(text: str) -> str:
@@ -33,3 +34,10 @@ def parse_from_json(text: str) -> dict:
         return json.loads(matches[-1].strip())
     except:
         return {}
+
+
+def to_int(text: Any) -> int:
+    try:
+        return int(text)
+    except:
+        return -100000
