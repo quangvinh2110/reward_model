@@ -7,7 +7,7 @@ You are an expert in mathematical logic and reasoning. You are given a math prob
 
 ### Task
 
-1. Briefly explain which parts in prior steps they rely on, and whether these premises are enough.
+1. For each step, briefly explain which parts in prior steps it relies on, and whether these premises are enough.
 2. Based on your explanation, generate a JSON object that strictly adheres to the following format:
 ```json
 {{

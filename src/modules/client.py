@@ -111,7 +111,7 @@ class Client(ABC):
             resp = resp.json()
             return [answer["message"]["content"] for answer in resp["choices"]]
         except:
-            return [resp.text]
+            return ["Failed: " + str(traceback.format_exc())]
 
     def __call__(
         self,

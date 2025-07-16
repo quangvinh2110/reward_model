@@ -233,6 +233,26 @@ class LogicFlowVerifier(Verifier):
             "/raid/vinh/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION.txt"
         )
 
+    def _build_subgraph(
+        self, solution_graph: nx.DiGraph, root: int, root_lst: List[int]
+    ) -> nx.DiGraph:
+        """Construct the sub-graph rooted at *root*."""
+        visited = set([root])
+        stack = [root]
+        while stack:
+            current = stack.pop()
+            for pred in solution_graph.predecessors(current):
+                if pred in visited:
+                    continue
+                visited.add(pred)
+                # Stop traversing beyond other root nodes but still keep
+                # them inside the current sub-graph (to provide context).
+                if pred in root_lst and pred != root:
+                    continue
+                stack.append(pred)
+
+        return solution_graph.subgraph(visited).copy()
+
     def _verify_one(
         self, id: int, sample: dict, **generation_kwargs
     ) -> Tuple[int, str]:
@@ -244,8 +264,58 @@ class LogicFlowVerifier(Verifier):
                 step_idx, content=sample["steps"][step_idx], resolved=False
             )
         solution_graph.nodes[0]["resolved"] = True
-        subgraphs = self._split_into_subgraphs(solution_graph)
-        pass
+        root_lst = self._identify_root_nodes(solution_graph)
+
+        for root in root_lst:
+            subgraph = self._build_subgraph(solution_graph, root, root_lst)
+            # tracked premises for subgraph is nodes that have no dependency
+            tracked_premises = "\n".join(
+                f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
+                for i in subgraph.nodes
+                if subgraph.in_degree(i) == 0
+            )
+            # target steps to verify is the nodes that have dependencies
+            tagged_steps = "\n".join(
+                f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
+                for i in subgraph.nodes
+                if subgraph.in_degree(i) > 0
+            )
+            user_input = self.prompt_template.format(
+                problem=sample["problem"],
+                tracked_premises=tracked_premises,
+                tagged_steps=tagged_steps,
+            )
+            subgraph_results = self.client(
+                batch_messages=[[{"role": "user", "content": user_input}]],
+                **generation_kwargs,
+            )[0]
+            for result, subgraph_result in zip(results, subgraph_results):
+                result.append(subgraph_result)
+            # Majority voting
+            parsed = [
+                parse_from_boxed(subgraph_result)
+                for subgraph_result in subgraph_results
+            ]
+            majority, _ = Counter(parsed).most_common(1)[0]
+            if majority != "-1":
+                for result in subgraph_results:
+                    result.append(f"Final answer: \\boxed{{{majority}}}")
+                no_wrong_step = False
+                break
+            else:
+                if (
+                    sample["label"] != -1
+                    and sample["label"] in subgraph.nodes
+                    and subgraph.in_degree(sample["label"]) > 0
+                ):
+                    for result in results:
+                        result.append(r"Final answer: \boxed{None}")
+                    no_wrong_step = False
+                    break
+        if no_wrong_step:
+            for result in results:
+                result.append("Final answer: \\boxed{-1}")
+        return (id, ["<|sep|>".join(result) for result in results])
 
     def _identify_root_nodes(self, graph: nx.DiGraph) -> List[int]:
         """Identify *root* nodes in the solution graph.
@@ -265,42 +335,8 @@ class LogicFlowVerifier(Verifier):
                 root_nodes.add(node)
 
         root_nodes.add(last_idx)
-        return root_nodes
-
-    def _split_into_subgraphs(self, graph: nx.DiGraph) -> List[nx.DiGraph]:
-        """Split *graph* into independent sub-graphs w.r.t. the root nodes.
-
-        For every root node *r*, we back-track through its predecessor chain(s)
-        until we either run out of predecessors or arrive at another root
-        node.  The visited nodes (including *r* and any encountered root
-        nodes) constitute a sub-graph.  The operation is repeated for every
-        root node to yield as many sub-graphs as there are root nodes.
-        """
-        root_nodes = self._identify_root_nodes(graph)
-        subgraphs: List[nx.DiGraph] = []
-
-        def build_subgraph(root: int) -> nx.DiGraph:
-            """Construct the sub-graph rooted at *root*."""
-            visited = set([root])
-            stack = [root]
-            while stack:
-                current = stack.pop()
-                for pred in graph.predecessors(current):
-                    if pred in visited:
-                        continue
-                    visited.add(pred)
-                    # Stop traversing beyond other root nodes but still keep
-                    # them inside the current sub-graph (to provide context).
-                    if pred in root_nodes and pred != root:
-                        continue
-                    stack.append(pred)
-
-            return graph.subgraph(visited).copy()
-
-        for root in root_nodes:
-            subgraphs.append(build_subgraph(root))
-
-        return subgraphs
+        root_nodes.add(0)  # Always include node 0 as a special root node
+        return sorted(list(root_nodes))
 
 
 class AutoVerifier:

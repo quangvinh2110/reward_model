@@ -54,8 +54,8 @@ class TargetedConstructor:
         problem: str,
         solution_graph: nx.DiGraph,
         step_idx: int,
-        candidate_idx_list: Optional[List[int]],
-        max_window_size: int,
+        candidate_idx_list: Optional[List[int]] = None,
+        max_window_size: int = 5,
         **generation_kwargs,
     ):
         if step_idx == 0:
@@ -70,6 +70,8 @@ class TargetedConstructor:
             )
         else:
             candidate_idx_list = sorted(i for i in solution_graph.nodes if i < step_idx)
+        if not candidate_idx_list:
+            return
         for group_idx_list in group_index_generator(
             candidate_idx_list, max_window_size, 0, reverse=True
         ):
@@ -116,19 +118,19 @@ class TargetedConstructor:
         )
         if target_idx:
             self._track_one_step(
-                problem,
-                solution_graph,
-                target_idx,
+                problem=problem,
+                solution_graph=solution_graph,
+                step_idx=target_idx,
                 max_window_size=max_window_size,
                 **generation_kwargs,
             )
             return solution_graph
         for step_idx in range(len(solution_graph.nodes)):
             self._track_one_step(
-                problem,
-                solution_graph,
-                step_idx,
-                max_window_size=max_window_size,
+                problem=problem,
+                solution_graph=solution_graph,
+                step_idx=step_idx,
+                max_window_size=max_window_size * 2,
                 **generation_kwargs,
             )
         return solution_graph
@@ -183,7 +185,10 @@ class GroupedConstructor:
                 prem_idx = to_int(prem_idx)
                 if prem_idx in group_idx_list and prem_idx < step_idx:
                     solution_graph.add_edge(prem_idx, step_idx)
-            if "resolved" in output[str(step_idx)]:
+            if (
+                "resolved" in output[str(step_idx)]
+                and output[str(step_idx)]["resolved"]
+            ):
                 solution_graph.nodes[step_idx]["resolved"] = True
         return solution_graph
 
