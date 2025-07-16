@@ -1,6 +1,6 @@
 import math
 import networkx as nx
-from typing import Optional
+from typing import Optional, List
 
 from ..utils.io import read_txt
 from ..utils.data import parse_from_json, to_int
@@ -8,29 +8,33 @@ from .client import OpenaiClient
 
 
 def group_index_generator(
-    n: int,
+    idx_list: List[int],
     max_window_size: int,
     overlap_size: int,
+    reverse: bool = True,
 ):
-    if max_window_size >= n:
-        yield 0, n
+    if max_window_size >= len(idx_list):
+        yield idx_list
         return
     if max_window_size < overlap_size:
         raise ValueError("max_window_size must be greater than overlap_size")
 
-    n_groups = max(1, math.ceil((n - overlap_size) / (max_window_size - overlap_size)))
-    group_size = (n + (n_groups - 1) * overlap_size) // n_groups
-    remainder = (n + (n_groups - 1) * overlap_size) % n_groups
-    end = start = n
+    n_groups = max(
+        1, math.ceil((len(idx_list) - overlap_size) / (max_window_size - overlap_size))
+    )
+    group_size = (len(idx_list) + (n_groups - 1) * overlap_size) // n_groups
+    remainder = (len(idx_list) + (n_groups - 1) * overlap_size) % n_groups
+    end = start = len(idx_list)
+    idx_list = idx_list[::-1] if not reverse else idx_list
     while start > 0:
         if remainder > 0:
             start = max(0, end - group_size - 1)
-            yield start, end
+            yield idx_list[start:end]
             end = start + overlap_size
             remainder -= 1
         else:
             start = max(0, end - group_size)
-            yield start, end
+            yield idx_list[start:end]
             end = start + overlap_size
 
 
@@ -50,6 +54,7 @@ class TargetedConstructor:
         problem: str,
         solution_graph: nx.DiGraph,
         step_idx: int,
+        candidate_idx_list: Optional[List[int]],
         max_window_size: int,
         **generation_kwargs,
     ):
@@ -57,10 +62,20 @@ class TargetedConstructor:
             return
         if solution_graph.nodes[step_idx]["resolved"]:
             return
-        for start_idx, end_idx in group_index_generator(step_idx, max_window_size, 0):
+        if candidate_idx_list:
+            candidate_idx_list = sorted(
+                i
+                for i in candidate_idx_list
+                if i < step_idx and i in solution_graph.nodes
+            )
+        else:
+            candidate_idx_list = sorted(i for i in solution_graph.nodes if i < step_idx)
+        for group_idx_list in group_index_generator(
+            candidate_idx_list, max_window_size, 0, reverse=True
+        ):
             tagged_steps = "\n".join(
                 f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
-                for i in range(start_idx, end_idx)
+                for i in group_idx_list
             )
             target_step = f"<step_{step_idx}>\n{solution_graph.nodes[step_idx]['content']}\n</step_{step_idx}>"
             tracked_premises = "\n".join(
@@ -82,7 +97,7 @@ class TargetedConstructor:
                 continue
             for prem_idx in output["premises"]:
                 prem_idx = to_int(prem_idx)
-                if prem_idx in range(start_idx, step_idx):
+                if prem_idx in group_idx_list:
                     solution_graph.add_edge(prem_idx, step_idx)
             if "resolved" in output and output["resolved"]:
                 solution_graph.nodes[step_idx]["resolved"] = True
@@ -134,15 +149,18 @@ class GroupedConstructor:
         self,
         problem: str,
         solution_graph: nx.DiGraph,
-        start_idx: Optional[int] = None,
-        end_idx: Optional[int] = None,
+        group_idx_list: Optional[List[int]] = None,
         **generation_kwargs,
     ) -> nx.DiGraph:
-        start_idx = start_idx if start_idx else 0
-        end_idx = end_idx if end_idx else len(solution_graph.nodes)
+        if group_idx_list:
+            group_idx_list = sorted(
+                i for i in group_idx_list if i in solution_graph.nodes
+            )
+        else:
+            group_idx_list = sorted(i for i in solution_graph.nodes)
         tagged_steps = "\n".join(
             f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
-            for i in range(start_idx, end_idx)
+            for i in group_idx_list
         )
         user_input = self.prompt_template.format(
             problem=problem,
@@ -153,7 +171,7 @@ class GroupedConstructor:
             **generation_kwargs,
         )[0][0]
         output = parse_from_json(response)
-        for step_idx in range(start_idx, end_idx):
+        for step_idx in group_idx_list:
             if str(step_idx) not in output:
                 continue
             if (
@@ -163,7 +181,7 @@ class GroupedConstructor:
                 continue
             for prem_idx in output[str(step_idx)]["premises"]:
                 prem_idx = to_int(prem_idx)
-                if prem_idx in range(start_idx, step_idx):
+                if prem_idx in group_idx_list and prem_idx < step_idx:
                     solution_graph.add_edge(prem_idx, step_idx)
             if "resolved" in output[str(step_idx)]:
                 solution_graph.nodes[step_idx]["resolved"] = True
@@ -179,23 +197,38 @@ class HybridConstructor:
         self.grouped_constructor = GroupedConstructor(client)
         self.targeted_constructor = TargetedConstructor(client)
 
-    def _construct_local(
-        self,
-        problem: str,
-        solution_graph: nx.DiGraph,
-        start: int,
-        end: int,
-        **generation_kwargs,
-    ):
-        pass
-
     def __call__(
         self,
         problem: str,
         solution_graph: nx.DiGraph,
+        max_window_size: int = 5,
+        overlap_size: int = 1,
         **generation_kwargs,
     ) -> nx.DiGraph:
-        pass
+        for group_idx_list in group_index_generator(
+            sorted(list(solution_graph.nodes)), max_window_size, overlap_size, False
+        ):
+            self.grouped_constructor(
+                problem=problem,
+                solution_graph=solution_graph,
+                group_idx_list=group_idx_list,
+                **generation_kwargs,
+            )
+            remaining_idx_list = [
+                i for i in solution_graph.nodes if i not in group_idx_list
+            ]
+            for step_idx in group_idx_list:
+                if solution_graph.nodes[step_idx]["resolved"]:
+                    continue
+                self.targeted_constructor._track_one_step(
+                    problem=problem,
+                    solution_graph=solution_graph,
+                    step_idx=step_idx,
+                    candidate_idx_list=remaining_idx_list,
+                    max_window_size=max_window_size,
+                    **generation_kwargs,
+                )
+        return solution_graph
 
 
 class AutoConstructor:
