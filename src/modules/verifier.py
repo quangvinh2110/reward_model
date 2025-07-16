@@ -230,13 +230,77 @@ class LogicFlowVerifier(Verifier):
 
     def _get_prompt_template(self) -> str:
         return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/PERL_VERIFICATION.txt"
+            "/raid/vinh/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION.txt"
         )
 
     def _verify_one(
         self, id: int, sample: dict, **generation_kwargs
     ) -> Tuple[int, str]:
+        results = [[] for _ in range(generation_kwargs.get("n", 1))]
+        no_wrong_step = True
+        solution_graph = nx.DiGraph()
+        for step_idx in range(len(sample["steps"])):
+            solution_graph.add_node(
+                step_idx, content=sample["steps"][step_idx], resolved=False
+            )
+        solution_graph.nodes[0]["resolved"] = True
+        subgraphs = self._split_into_subgraphs(solution_graph)
         pass
+
+    def _identify_root_nodes(self, graph: nx.DiGraph) -> List[int]:
+        """Identify *root* nodes in the solution graph.
+
+        A node *i* is a root node if **any** of its immediate successors is not
+        *i + 1* (meaning the result of step *i* is reused later in the
+        solution) or if *i* is the final step.
+        """
+        if graph.number_of_nodes() == 0:
+            return []
+
+        last_idx = max(graph.nodes())
+        root_nodes = set()
+        for node in graph.nodes():
+            succs = list(graph.successors(node))
+            if any(succ != node + 1 for succ in succs):
+                root_nodes.add(node)
+
+        root_nodes.add(last_idx)
+        return root_nodes
+
+    def _split_into_subgraphs(self, graph: nx.DiGraph) -> List[nx.DiGraph]:
+        """Split *graph* into independent sub-graphs w.r.t. the root nodes.
+
+        For every root node *r*, we back-track through its predecessor chain(s)
+        until we either run out of predecessors or arrive at another root
+        node.  The visited nodes (including *r* and any encountered root
+        nodes) constitute a sub-graph.  The operation is repeated for every
+        root node to yield as many sub-graphs as there are root nodes.
+        """
+        root_nodes = self._identify_root_nodes(graph)
+        subgraphs: List[nx.DiGraph] = []
+
+        def build_subgraph(root: int) -> nx.DiGraph:
+            """Construct the sub-graph rooted at *root*."""
+            visited = set([root])
+            stack = [root]
+            while stack:
+                current = stack.pop()
+                for pred in graph.predecessors(current):
+                    if pred in visited:
+                        continue
+                    visited.add(pred)
+                    # Stop traversing beyond other root nodes but still keep
+                    # them inside the current sub-graph (to provide context).
+                    if pred in root_nodes and pred != root:
+                        continue
+                    stack.append(pred)
+
+            return graph.subgraph(visited).copy()
+
+        for root in root_nodes:
+            subgraphs.append(build_subgraph(root))
+
+        return subgraphs
 
 
 class AutoVerifier:

@@ -4,8 +4,7 @@ import os
 import json
 from collections import Counter
 from datasets import load_from_disk
-from openai import OpenAI
-from src.utils.parser import parse_from_boxed
+from src.utils.data import parse_from_boxed
 from src.modules.verifier import AutoVerifier
 from src.modules.client import OpenaiClient
 

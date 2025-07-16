@@ -4,59 +4,31 @@ import asyncio
 import traceback
 from collections.abc import Iterable
 from typing import List, Optional
+from abc import ABC, abstractmethod
 
 from tqdm.asyncio import tqdm
 
 from ..utils.io import batch_iter
 
 
-class OpenaiClient:
-    """Base class for LLM API clients.
-
-    This abstract base class provides common functionality for interacting with
-    different LLM API endpoints. It handles request formatting, error handling,
-    and batch processing of prompts.
-
-    Args:
-        endpoint (str): Base URL of the LLM API server
-        model (Optional[str]): Name of the model being served
-    """
-
-    def __init__(
-        self,
-        endpoint: str,
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
-    ):
-        self.endpoint = endpoint.rstrip("/") + "/v1/chat/completions"
+class Client(ABC):
+    def __init__(self, endpoint: str, model: str, api_key: Optional[str] = None):
+        self.endpoint = endpoint
         self.model = model
         self.api_key = api_key
+        if api_key:
+            self.headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+            }
+        else:
+            self.headers = {"Content-Type": "application/json"}
 
+    @abstractmethod
     def _format_request_payload(
         self, messages: List[dict], **generation_kwargs
     ) -> dict:
-        """Format the request payload for OpenAI API.
-
-        Args:
-            messages (List[dict]): Input messages
-            **generation_kwargs: Additional generation parameters
-
-        Returns:
-            dict: Formatted request payload for OpenAI API
-        """
-        return {
-            "model": self.model,
-            "messages": messages,
-            "n": 1,
-            "best_of": 1,
-            "use_beam_search": False,
-            "max_tokens": 1024,
-            "repetition_penalty": 1.0,
-            "temperature": 0,
-            "top_p": 0.9,
-            "top_k": -1,
-            **generation_kwargs,
-        }
+        raise NotImplementedError("Subclass must implement this method")
 
     async def _agenerate_one(
         self,
@@ -75,16 +47,9 @@ class OpenaiClient:
             List[str]: List of generated text responses
         """
         data = self._format_request_payload(messages, **generation_kwargs)
-        if self.api_key:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}",
-            }
-        else:
-            headers = {"Content-Type": "application/json"}
         try:
             async with session.post(
-                self.endpoint, headers=headers, json=data, timeout=600000
+                self.endpoint, headers=self.headers, json=data, timeout=600000
             ) as resp:
                 try:
                     resp = await resp.json()
@@ -138,16 +103,9 @@ class OpenaiClient:
         Returns:
             List[str]: List of generated text responses
         """
-        if self.api_key:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}",
-            }
-        else:
-            headers = {"Content-Type": "application/json"}
         data = self._format_request_payload(messages, **generation_kwargs)
         resp = requests.request(
-            "POST", self.endpoint, headers=headers, json=data, timeout=600000
+            "POST", self.endpoint, headers=self.headers, json=data, timeout=600000
         )
         try:
             resp = resp.json()
@@ -185,18 +143,69 @@ class OpenaiClient:
         return results
 
 
-if __name__ == "__main__":
-    # Test prompts
-    test_prompts = [
-        "What is the capital of France?",
-        "Explain quantum computing in one sentence.",
-        "Write a haiku about programming.",
-    ]
+class OpenaiClient:
+    """Base class for LLM API clients.
 
-    # Test VLLM client
-    print("\nTesting VLLM Client:")
-    vllm_client = OpenaiClient(endpoint="http://localhost:8000", model="llama-2-7b")
-    vllm_results = vllm_client(test_prompts)
-    for prompt, responses in zip(test_prompts, vllm_results):
-        print(f"\nPrompt: {prompt}")
-        print(f"Responses: {responses}")
+    This abstract base class provides common functionality for interacting with
+    different LLM API endpoints. It handles request formatting, error handling,
+    and batch processing of prompts.
+
+    Args:
+        endpoint (str): Base URL of the LLM API server
+        model (Optional[str]): Name of the model being served
+    """
+
+    def __init__(
+        self,
+        endpoint: str,
+        model: str,
+        api_key: Optional[str] = None,
+    ):
+        full_endpoint = endpoint.rstrip("/") + "/v1/chat/completions"
+        super().__init__(full_endpoint, model, api_key)
+
+    def _format_request_payload(
+        self, messages: List[dict], **generation_kwargs
+    ) -> dict:
+        """Format the request payload for OpenAI API.
+
+        Args:
+            messages (List[dict]): Input messages
+            **generation_kwargs: Additional generation parameters
+
+        Returns:
+            dict: Formatted request payload for OpenAI API
+        """
+        return {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": 1024,
+            **generation_kwargs,
+        }
+
+
+class AzureOpenaiClient(Client):
+    def __init__(
+        self,
+        endpoint: str,
+        model: str,
+        api_key: str,
+        api_version: str,
+    ):
+        full_endpoint = (
+            endpoint.rstrip("/")
+            + "/openai/deployments/"
+            + model
+            + "/chat/completions?api-version="
+            + api_version
+        )
+        super().__init__(full_endpoint, model, api_key)
+
+    def _format_request_payload(
+        self, messages: List[dict], **generation_kwargs
+    ) -> dict:
+        return {
+            "messages": messages,
+            "max_tokens": 1024,
+            **generation_kwargs,
+        }
