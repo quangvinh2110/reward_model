@@ -231,7 +231,8 @@ class LogicFlowVerifier(Verifier):
 
         A node *i* is a root node if **any** of its immediate successors is not
         *i + 1* (meaning the result of step *i* is reused later in the
-        solution) or if *i* is the final step.
+        solution) or if *i* is the final step, or if *i* has two or more
+        predecessors (a synthesis node).
         """
         if graph.number_of_nodes() == 0:
             return []
@@ -242,20 +243,22 @@ class LogicFlowVerifier(Verifier):
             succs = list(graph.successors(node))
             if any(succ != node + 1 for succ in succs):
                 root_nodes.add(node)
+            if graph.in_degree(node) >= 2:
+                root_nodes.add(node)
 
         root_nodes.add(last_idx)
         root_nodes.add(0)
         return sorted(list(root_nodes))
 
     def _build_subgraph(
-        self, solution_graph: nx.DiGraph, root: int, root_lst: List[int]
+        self, graph: nx.DiGraph, root: int, root_lst: List[int]
     ) -> nx.DiGraph:
         """Construct the sub-graph rooted at *root*."""
         visited = set([root])
         stack = [root]
         while stack:
             current = stack.pop()
-            for pred in solution_graph.predecessors(current):
+            for pred in graph.predecessors(current):
                 if pred in visited:
                     continue
                 visited.add(pred)
@@ -265,7 +268,7 @@ class LogicFlowVerifier(Verifier):
                     continue
                 stack.append(pred)
 
-        return solution_graph.subgraph(visited).copy()
+        return graph.subgraph(visited).copy()
 
     def _verify_one(
         self, id: int, sample: dict, **generation_kwargs
