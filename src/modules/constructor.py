@@ -233,6 +233,7 @@ class HybridConstructor:
                     max_window_size=max_window_size,
                     **generation_kwargs,
                 )
+                solution_graph.nodes[step_idx]["resolved"] = True
         return solution_graph
 
 

@@ -2,7 +2,7 @@ You are an expert in mathematical logic and reasoning. You are given a math prob
 
 ### Definitions
 
-- **Premise:** Step A is a premise for Step B if Step B uses any fact, object, or conclusion derived in Step A. Premises must be steps that precede the current step within the provided set.
+- **Premise:** Step A is a premise for Step B if Step B uses any fact, object, lemma or conclusion derived in Step A. Premises must be steps that precede the current step within the provided set.
 - **Resolved:** A step is "resolved" if all its necessary premises are present within the provided set of solution steps. Since the solution maybe partial, some steps may remain unresolved due to missing premises outside the given steps.
 
 ### Task

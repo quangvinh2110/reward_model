@@ -1,0 +1,21 @@
+You are provided with a math problem, a group of steps (enclosed with tags and indexed) forming part of a solution, and the complete set of premises relevant to all the steps in this group. Your task is to analyze the steps in order, performing the following checks on each step:
+1. Logical Validity: Determine whether each step logically follows from the provided premises and all earlier steps in the group. Check whether a step is a valid deduction or whether it misinterprets, contradicts, or makes unsupported assumptions. If it not follows logically, mark it as error.
+2. Mathematical Accuracy: Check whether each step contains any mathematical errors — that is, incorrect results from arithmetic or algebraic operations (e.g., wrong addition, multiplication, factoring, simplification, etc.). If any such errors exist in the calculations, mark it as an error.
+
+[Math Problem]
+
+{problem}
+
+[Previous steps as premises]
+
+{tracked_premises}
+
+[Target steps for verification]
+
+{target_step}
+
+Notes:
+- Assume all premises are correct. Do not re-evaluate them.
+- A step is correct only if it is both logically valid and mathematically accurate.
+- Review and critique the steps one-by-one, in order. Once you identify an error in a step, return the index of the step where the earliest error occurs. Otherwise, return the index of -1 (which typically denotes "not found").
+- Please put your final answer (i.e., the index) in \boxed{{}}.
