@@ -110,7 +110,6 @@ class StepwiseVerifier(Verifier):
     ) -> Tuple[int, str]:
         """Verify a single sample (dictionary) with early stopping and majority voting."""
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
-        no_wrong_step = True
         for step_idx in range(len(sample["steps"])):
             tagged_steps = "\n".join(
                 [
@@ -134,14 +133,11 @@ class StepwiseVerifier(Verifier):
             if majority == "0":
                 for result in results:
                     result.append(f"Final answer: \\boxed{{{step_idx}}}")
-                no_wrong_step = False
-                break
+                return (id, ["<|sep|>".join(result) for result in results])
             if step_idx == sample["label"]:
                 for result in results:
                     result.append(r"Final answer: \boxed{None}")
-                no_wrong_step = False
-                break
-        if no_wrong_step:
+                return (id, ["<|sep|>".join(result) for result in results])
             for result in results:
                 result.append("Final answer: \\boxed{-1}")
         return (id, ["<|sep|>".join(result) for result in results])
@@ -166,7 +162,6 @@ class PerlVerifier(Verifier):
         self, id: int, sample: dict, **generation_kwargs
     ) -> Tuple[int, str]:
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
-        no_wrong_step = True
         solution_graph = nx.DiGraph()
         for step_idx in range(len(sample["steps"])):
             solution_graph.add_node(
@@ -206,16 +201,13 @@ class PerlVerifier(Verifier):
             if majority == "0":
                 for result in results:
                     result.append(f"Final answer: \\boxed{{{step_idx}}}")
-                no_wrong_step = False
-                break
+                return (id, ["<|sep|>".join(result) for result in results])
             if step_idx == sample["label"]:
                 for result in results:
                     result.append(r"Final answer: \boxed{None}")
-                no_wrong_step = False
-                break
-        if no_wrong_step:
-            for result in results:
-                result.append("Final answer: \\boxed{-1}")
+                return (id, ["<|sep|>".join(result) for result in results])
+        for result in results:
+            result.append("Final answer: \\boxed{-1}")
         return (id, ["<|sep|>".join(result) for result in results])
 
 
@@ -279,7 +271,6 @@ class LogicFlowVerifier(Verifier):
         self, id: int, sample: dict, **generation_kwargs
     ) -> Tuple[int, str]:
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
-        no_wrong_step = True
         solution_graph = nx.DiGraph()
         for step_idx in range(len(sample["steps"])):
             solution_graph.add_node(
@@ -324,17 +315,14 @@ class LogicFlowVerifier(Verifier):
                 if majority == "0":
                     for result in results:
                         result.append(f"Final answer: \\boxed{{{step_idx}}}")
-                    no_wrong_step = False
-                    break
+                    return (id, ["<|sep|>".join(result) for result in results])
                 if step_idx == sample["label"]:
                     for result in results:
                         result.append(r"Final answer: \boxed{None}")
-                        no_wrong_step = False
-                    break
-            if no_wrong_step:
-                for result in results:
-                    result.append("Final answer: \\boxed{-1}")
-            return (id, ["<|sep|>".join(result) for result in results])
+                    return (id, ["<|sep|>".join(result) for result in results])
+        for result in results:
+            result.append("Final answer: \\boxed{-1}")
+        return (id, ["<|sep|>".join(result) for result in results])
 
 
 class AutoVerifier:
