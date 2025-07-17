@@ -152,7 +152,7 @@ def main():
 
         # Generate critiques using the verifier
         generated_critiques = verifier(
-            input_data.to_list(), num_workers=1, **generation_kwargs
+            input_data.to_list(), num_workers=16, **generation_kwargs
         )
 
         res_data = []

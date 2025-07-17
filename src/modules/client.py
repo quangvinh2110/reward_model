@@ -143,7 +143,7 @@ class Client(ABC):
         return results
 
 
-class OpenaiClient:
+class OpenaiClient(Client):
     """Base class for LLM API clients.
 
     This abstract base class provides common functionality for interacting with

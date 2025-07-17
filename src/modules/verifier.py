@@ -233,6 +233,27 @@ class LogicFlowVerifier(Verifier):
             "/raid/vinh/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION.txt"
         )
 
+    def _identify_root_nodes(self, graph: nx.DiGraph) -> List[int]:
+        """Identify *root* nodes in the solution graph.
+
+        A node *i* is a root node if **any** of its immediate successors is not
+        *i + 1* (meaning the result of step *i* is reused later in the
+        solution) or if *i* is the final step.
+        """
+        if graph.number_of_nodes() == 0:
+            return []
+
+        last_idx = max(graph.nodes())
+        root_nodes = set()
+        for node in graph.nodes():
+            succs = list(graph.successors(node))
+            if any(succ != node + 1 for succ in succs):
+                root_nodes.add(node)
+
+        root_nodes.add(last_idx)
+        root_nodes.add(0)
+        return sorted(list(root_nodes))
+
     def _build_subgraph(
         self, solution_graph: nx.DiGraph, root: int, root_lst: List[int]
     ) -> nx.DiGraph:
@@ -269,16 +290,26 @@ class LogicFlowVerifier(Verifier):
         for root in root_lst:
             subgraph = self._build_subgraph(solution_graph, root, root_lst)
             # tracked premises for subgraph is nodes that have no dependency
+            if len(subgraph.nodes) == 1:
+                target_step_indices = [
+                    i for i in subgraph.nodes if subgraph.in_degree(i) > 0
+                ]
+                target_step_indices = sorted(target_step_indices)
+                premises_indices = [
+                    i for i in subgraph.nodes if subgraph.in_degree(i) == 0
+                ]
+                premises_indices = sorted(premises_indices)
+            else:
+                target_step_indices = [root]
+                premises_indices = []
             tracked_premises = "\n".join(
                 f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
-                for i in subgraph.nodes
-                if subgraph.in_degree(i) == 0
+                for i in premises_indices
             )
             # target steps to verify is the nodes that have dependencies
             tagged_steps = "\n".join(
                 f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
-                for i in subgraph.nodes
-                if subgraph.in_degree(i) > 0
+                for i in target_step_indices
             )
             user_input = self.prompt_template.format(
                 problem=sample["problem"],
@@ -298,7 +329,7 @@ class LogicFlowVerifier(Verifier):
             ]
             majority, _ = Counter(parsed).most_common(1)[0]
             if majority != "-1":
-                for result in subgraph_results:
+                for result in results:
                     result.append(f"Final answer: \\boxed{{{majority}}}")
                 no_wrong_step = False
                 break
@@ -316,27 +347,6 @@ class LogicFlowVerifier(Verifier):
             for result in results:
                 result.append("Final answer: \\boxed{-1}")
         return (id, ["<|sep|>".join(result) for result in results])
-
-    def _identify_root_nodes(self, graph: nx.DiGraph) -> List[int]:
-        """Identify *root* nodes in the solution graph.
-
-        A node *i* is a root node if **any** of its immediate successors is not
-        *i + 1* (meaning the result of step *i* is reused later in the
-        solution) or if *i* is the final step.
-        """
-        if graph.number_of_nodes() == 0:
-            return []
-
-        last_idx = max(graph.nodes())
-        root_nodes = set()
-        for node in graph.nodes():
-            succs = list(graph.successors(node))
-            if any(succ != node + 1 for succ in succs):
-                root_nodes.add(node)
-
-        root_nodes.add(last_idx)
-        root_nodes.add(0)  # Always include node 0 as a special root node
-        return sorted(list(root_nodes))
 
 
 class AutoVerifier:
