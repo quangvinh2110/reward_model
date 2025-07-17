@@ -12,7 +12,7 @@ You are provided with a math problem, a group of steps (enclosed with tags and i
 
 [Target steps for verification]
 
-{target_step}
+{tagged_steps}
 
 Notes:
 - Assume all premises are correct. Do not re-evaluate them.
