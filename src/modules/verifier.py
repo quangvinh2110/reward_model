@@ -112,10 +112,6 @@ class StepwiseVerifier(Verifier):
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
         no_wrong_step = True
         for step_idx in range(len(sample["steps"])):
-            if sample["label"] != -1 and step_idx > sample["label"]:
-                for result in results:
-                    result.append(r"Final answer: \boxed{None}")
-                break
             tagged_steps = "\n".join(
                 [
                     f"<step_{i}>\n{step}\n</step_{i}>"
@@ -138,6 +134,11 @@ class StepwiseVerifier(Verifier):
             if majority == "0":
                 for result in results:
                     result.append(f"Final answer: \\boxed{{{step_idx}}}")
+                no_wrong_step = False
+                break
+            if step_idx == sample["label"]:
+                for result in results:
+                    result.append(r"Final answer: \boxed{None}")
                 no_wrong_step = False
                 break
         if no_wrong_step:
@@ -173,11 +174,6 @@ class PerlVerifier(Verifier):
             )
         solution_graph.nodes[0]["resolved"] = True
         for step_idx in range(len(sample["steps"])):
-            if sample["label"] != -1 and step_idx > sample["label"]:
-                no_wrong_step = False
-                for result in results:
-                    result.append(r"Final answer: \boxed{None}")
-                break
             self.constructor(
                 problem=sample["problem"],
                 solution_graph=solution_graph,
@@ -210,6 +206,11 @@ class PerlVerifier(Verifier):
             if majority == "0":
                 for result in results:
                     result.append(f"Final answer: \\boxed{{{step_idx}}}")
+                no_wrong_step = False
+                break
+            if step_idx == sample["label"]:
+                for result in results:
+                    result.append(r"Final answer: \boxed{None}")
                 no_wrong_step = False
                 break
         if no_wrong_step:
@@ -285,68 +286,55 @@ class LogicFlowVerifier(Verifier):
                 step_idx, content=sample["steps"][step_idx], resolved=False
             )
         solution_graph.nodes[0]["resolved"] = True
+        self.constructor(
+            problem=sample["problem"],
+            solution_graph=solution_graph,
+            **generation_kwargs,
+        )
         root_lst = self._identify_root_nodes(solution_graph)
 
         for root in root_lst:
             subgraph = self._build_subgraph(solution_graph, root, root_lst)
-            # tracked premises for subgraph is nodes that have no dependency
-            if len(subgraph.nodes) == 1:
+            if len(subgraph.nodes) > 1:
                 target_step_indices = [
                     i for i in subgraph.nodes if subgraph.in_degree(i) > 0
                 ]
                 target_step_indices = sorted(target_step_indices)
-                premises_indices = [
-                    i for i in subgraph.nodes if subgraph.in_degree(i) == 0
-                ]
-                premises_indices = sorted(premises_indices)
             else:
                 target_step_indices = [root]
-                premises_indices = []
-            tracked_premises = "\n".join(
-                f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
-                for i in premises_indices
-            )
-            # target steps to verify is the nodes that have dependencies
             tagged_steps = "\n".join(
-                f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
-                for i in target_step_indices
+                f"<step_{i}>\n{subgraph.nodes[i]['content']}\n</step_{i}>"
+                for i in subgraph.nodes
             )
-            user_input = self.prompt_template.format(
-                problem=sample["problem"],
-                tracked_premises=tracked_premises,
-                tagged_steps=tagged_steps,
-            )
-            subgraph_results = self.client(
-                batch_messages=[[{"role": "user", "content": user_input}]],
-                **generation_kwargs,
-            )[0]
-            for result, subgraph_result in zip(results, subgraph_results):
-                result.append(subgraph_result)
-            # Majority voting
-            parsed = [
-                parse_from_boxed(subgraph_result)
-                for subgraph_result in subgraph_results
-            ]
-            majority, _ = Counter(parsed).most_common(1)[0]
-            if majority != "-1":
-                for result in results:
-                    result.append(f"Final answer: \\boxed{{{majority}}}")
-                no_wrong_step = False
-                break
-            else:
-                if (
-                    sample["label"] != -1
-                    and sample["label"] in subgraph.nodes
-                    and subgraph.in_degree(sample["label"]) > 0
-                ):
+            for step_idx in target_step_indices:
+                target_step = f"<step_{step_idx}>\n{sample['steps'][step_idx]}\n</step_{step_idx}>"
+                user_input = self.prompt_template.format(
+                    problem=sample["problem"],
+                    tagged_steps=tagged_steps,
+                    target_step=target_step,
+                )
+                step_results = self.client(
+                    batch_messages=[[{"role": "user", "content": user_input}]],
+                    **generation_kwargs,
+                )[0]
+                for result, step_result in zip(results, step_results):
+                    result.append(step_result)
+                parsed = [parse_from_boxed(step_result) for step_result in step_results]
+                majority, _ = Counter(parsed).most_common(1)[0]
+                if majority == "0":
                     for result in results:
-                        result.append(r"Final answer: \boxed{None}")
+                        result.append(f"Final answer: \\boxed{{{step_idx}}}")
                     no_wrong_step = False
                     break
-        if no_wrong_step:
-            for result in results:
-                result.append("Final answer: \\boxed{-1}")
-        return (id, ["<|sep|>".join(result) for result in results])
+                if step_idx == sample["label"]:
+                    for result in results:
+                        result.append(r"Final answer: \boxed{None}")
+                        no_wrong_step = False
+                    break
+            if no_wrong_step:
+                for result in results:
+                    result.append("Final answer: \\boxed{-1}")
+            return (id, ["<|sep|>".join(result) for result in results])
 
 
 class AutoVerifier:
