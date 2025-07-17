@@ -130,7 +130,7 @@ class TargetedConstructor:
                 problem=problem,
                 solution_graph=solution_graph,
                 step_idx=step_idx,
-                max_window_size=max_window_size * 2,
+                max_window_size=max_window_size,
                 **generation_kwargs,
             )
         return solution_graph
@@ -230,7 +230,7 @@ class HybridConstructor:
                     solution_graph=solution_graph,
                     step_idx=step_idx,
                     candidate_idx_list=remaining_idx_list,
-                    max_window_size=max_window_size,
+                    max_window_size=max_window_size * 2,
                     **generation_kwargs,
                 )
                 solution_graph.nodes[step_idx]["resolved"] = True
