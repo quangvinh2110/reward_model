@@ -1,19 +1,32 @@
-You are an expert in mathematical logic and reasoning. You are given a math problem, a partial solution consisting of a set of indexed steps, a target step, and its previously known direct premises (optional). Your goal is to (1) identify only the direct premises from the partial solution that the target step depends on, and (2) determine if the target step is resolved.
+You are an expert in mathematical logic and reasoning. You are given a math problem (labeled as Step -1), a partial solution consisting of a set of indexed steps, a target step, and its previously known direct premises (optional). Your goal is to (1) identify **only the direct premises** from the partial solution that the target step depends on, and specify what specific content from each premise is used;(2) determine if the target step is resolved.
 
 Definitions:
-- Premise: Step A is a premise for Step B if Step B uses any fact, object, lemma, or conclusion derived in Step A.
+- Premise: Step A is a premise for Step B if Step B uses any fact, object, lemma, or conclusion derived in Step A. 
 - Resolved: The target step is "resolved" if all of its necessary premises are included in the union of the provided solution set and its known premises. If there are still missing premises outside these, then it is unresolved.
 
 Task:
 1. Briefly explain which steps from the solution set the target step depends on, and whether these premisess—together with the previously known premises—are enough.
 2. Based on your reasoning, generate a JSON object that strictly adheres to the following format:
 ```json
-{{"premises": [<list of premise indices>], "resolved": <boolean>}}
+{{
+  "premises": [
+    {{
+      "index": <step index>,
+      "used": "<the specific part used from that step>"
+    }}
+  ],
+  "resolved": <boolean>
+}}
 ```
 Example JSON object: ```json
-{{"premises": [5, 6], "resolved": false}}
+{{
+  "premises": [
+    {{"index": -1, "used": "function f(x) is continuous"}},
+    {{"index": 3, "used": "(2)^2 + (-1)*2 + (4)/2 = 7"}}
+  ],
+  "resolved": false
+}}
 ```
-
 ---
 
 [Math Problem]

@@ -143,7 +143,7 @@ class StepwiseVerifier(Verifier):
         return (id, ["<|sep|>".join(result) for result in results])
 
 
-class PerlVerifier(Verifier):
+class ParcVerifier(Verifier):
 
     def __init__(
         self,
@@ -243,7 +243,7 @@ class LogicFlowVerifier(Verifier):
             succs = list(graph.successors(node))
             if any(succ != node + 1 for succ in succs):
                 root_nodes.add(node)
-            if graph.in_degree(node) >= 2:
+            elif graph.in_degree(node) >= 2 or graph.in_degree(node) == 0:
                 root_nodes.add(node)
 
         root_nodes.add(last_idx)
@@ -332,7 +332,7 @@ class AutoVerifier:
     TYPE_MAP = {
         "sequential": SequentialVerifier,
         "stepwise": StepwiseVerifier,
-        "perl": PerlVerifier,
+        "parc": ParcVerifier,
         "logicflow": LogicFlowVerifier,
     }
 

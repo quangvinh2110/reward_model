@@ -46,7 +46,7 @@ class TargetedConstructor:
     ):
         self.client = client
         self.prompt_template = read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/TARGETED_TRACKING.txt"
+            r"E:\AAAI-26\resources\prompt_templates\TARGETED_TRACKING.txt"
         )
 
     def _track_one_step(
@@ -116,6 +116,7 @@ class TargetedConstructor:
         max_window_size = (
             max_window_size if max_window_size else len(solution_graph.nodes)
         )
+        generation_kwargs["n"] = 1
         if target_idx:
             self._track_one_step(
                 problem=problem,
@@ -144,7 +145,7 @@ class GroupedConstructor:
     ):
         self.client = client
         self.prompt_template = read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/GROUPED_TRACKING.txt"
+            r"E:\AAAI-26\resources\prompt_templates\GROUPED_TRACKING.txt"
         )
 
     def __call__(
@@ -237,11 +238,32 @@ class HybridConstructor:
         return solution_graph
 
 
+class DacConstructor:
+    def __init__(
+        self,
+        client: OpenaiClient,
+    ):
+        self.client = client
+        self.grouped_constructor = GroupedConstructor(client)
+        self.prompt_template = read_txt(
+            r"E:\AAAI-26\resources\prompt_templates\DAC_TRACKING.txt"
+        )
+
+    def __call__(
+        self,
+        problem: str,
+        solution_graph: nx.DiGraph,
+        **generation_kwargs,
+    ) -> nx.DiGraph:
+        pass
+
+
 class AutoConstructor:
     TYPE_MAP = {
         "targeted": TargetedConstructor,
         "grouped": GroupedConstructor,
         "hybrid": HybridConstructor,
+        "dac": DacConstructor,
     }
 
     @classmethod

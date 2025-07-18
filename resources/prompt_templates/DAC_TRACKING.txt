@@ -1,0 +1,27 @@
+You are an expert in mathematical logic and reasoning. You are given a math problem and a partial (or sometimes complete) solution, split into numbered steps (enclosed in tags, indexed from 0). Your task is to identify which steps are “root steps” in the logical structure of the solution.
+
+A "root step" is a conceptually significant turning point in the solution — a step that either introduces a new direction, proves a reusable insight (like a lemma), or plays a structural role in how the solution unfolds. A root step is not necessarily complex, but it anchors a meaningful shift in strategy or logic. It helps the reader navigate the high-level structure of the solution.
+
+Your Task:
+
+1. For each step you identify as a root, briefly explain why it qualifies as a root step.
+2. Based on your explanation, generate a JSON object that strictly adheres to the following format:
+```json
+{{
+  "root_steps": [<list of root step indices>]
+  ...
+}}
+```
+Example JSON object: ```json
+{{
+  "root_steps": [0, 3, 4, 9]
+}}
+```
+
+Input:
+
+[Math Problem]
+{problem}
+
+[Partial Solution]
+{tagged_steps}
