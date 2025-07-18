@@ -46,7 +46,7 @@ class TargetedConstructor:
     ):
         self.client = client
         self.prompt_template = read_txt(
-            r"E:\AAAI-26\resources\prompt_templates\TARGETED_TRACKING.txt"
+            "/raid/vinh/reward_model/resources/prompt_templates/TARGETED_TRACKING.txt"
         )
 
     def _track_one_step(
@@ -145,7 +145,7 @@ class GroupedConstructor:
     ):
         self.client = client
         self.prompt_template = read_txt(
-            r"E:\AAAI-26\resources\prompt_templates\GROUPED_TRACKING.txt"
+            "/raid/vinh/reward_model/resources/prompt_templates/GROUPED_TRACKING.txt"
         )
 
     def __call__(
@@ -244,9 +244,9 @@ class DacConstructor:
         client: OpenaiClient,
     ):
         self.client = client
-        self.grouped_constructor = GroupedConstructor(client)
+        self.targeted_constructor = TargetedConstructor(client)
         self.prompt_template = read_txt(
-            r"E:\AAAI-26\resources\prompt_templates\DAC_TRACKING.txt"
+            "/raid/vinh/reward_model/resources/prompt_templates/DAC_TRACKING.txt"
         )
 
     def __call__(
@@ -255,7 +255,49 @@ class DacConstructor:
         solution_graph: nx.DiGraph,
         **generation_kwargs,
     ) -> nx.DiGraph:
-        pass
+        tagged_steps = "\n".join(
+            f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
+            for i in sorted(solution_graph.nodes)
+        )
+        user_input = self.prompt_template.format(
+            problem=problem, tagged_steps=tagged_steps
+        )
+        response = self.client(
+            batch_messages=[[{"role": "user", "content": user_input}]],
+            **generation_kwargs,
+        )[0][0]
+        try:
+            root_indices = parse_from_json(response)["root_steps"]
+            root_indices = sorted(to_int(i) for i in root_indices)
+            if max(solution_graph.nodes) not in root_indices:
+                root_indices.append(max(solution_graph.nodes))
+            groups = []
+            for i in range(len(root_indices) - 1):
+                group = [
+                    idx
+                    for idx in solution_graph.nodes
+                    if idx >= root_indices[i] and idx <= root_indices[i + 1]
+                ]
+                for root_idx in root_indices[:i]:
+                    group.append(root_idx)
+                group = sorted(group)
+                groups.append(group)
+        except:
+            groups = [sorted(solution_graph.nodes)]
+        for group_idx_list in groups:
+            for i in range(len(group_idx_list)):
+                if solution_graph.nodes[group_idx_list[i]]["resolved"]:
+                    continue
+                self.targeted_constructor._track_one_step(
+                    problem=problem,
+                    solution_graph=solution_graph,
+                    step_idx=group_idx_list[i],
+                    candidate_idx_list=group_idx_list[:i],
+                    max_window_size=len(group_idx_list),
+                    **generation_kwargs,
+                )
+                solution_graph.nodes[group_idx_list[i]]["resolved"] = True
+        return solution_graph
 
 
 class AutoConstructor:

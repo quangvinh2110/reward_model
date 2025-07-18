@@ -1,6 +1,4 @@
-You are provided with a math problem, a group of indexed steps from a solution, and a target step within that group. Your task is twofold:
-1. Logical Validity: Determine whether the target step logically follows from the problem and from prior steps in the group. Check whether the step is a valid deduction or whether it misinterprets, contradicts, or makes unsupported assumptions. If it not follows logically, mark it as error.
-2. Mathematical Accuracy: Check whether the given statement contains any mathematical errors — that is, incorrect results from arithmetic or algebraic operations (e.g., wrong addition, multiplication, factoring, simplification, etc.). If any such errors exist in the calculations, mark it as an error.
+You are provided with a math problem, a group of indexed steps from a solution.
 
 [Math Problem]
 
@@ -13,6 +11,10 @@ You are provided with a math problem, a group of indexed steps from a solution, 
 [Target step]
 
 {target_step}
+
+Your task is twofold:
+1. Logical Validity: Determine whether the target step logically follows from the problem and from prior steps in the group. Check whether the step is a valid deduction or whether it misinterprets, contradicts, or makes unsupported assumptions. If it not follows logically, mark it as error.
+2. Mathematical Accuracy: Check whether the given statement contains any mathematical errors — that is, incorrect results from arithmetic or algebraic operations (e.g., wrong addition, multiplication, factoring, simplification, etc.). If any such errors exist in the calculations, mark it as an error.
 
 Notes:
 - Assume all other steps (except the target, including the question) are correct. Do not re-evaluate them.

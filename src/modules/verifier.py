@@ -223,7 +223,7 @@ class LogicFlowVerifier(Verifier):
 
     def _get_prompt_template(self) -> str:
         return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION.txt"
+            "/raid/vinh/reward_model/resources/prompt_templates/STEPWISE_VERIFICATION.txt"
         )
 
     def _identify_root_nodes(self, graph: nx.DiGraph) -> List[int]:
@@ -290,22 +290,21 @@ class LogicFlowVerifier(Verifier):
         for root in root_lst:
             subgraph = self._build_subgraph(solution_graph, root, root_lst)
             if len(subgraph.nodes) > 1:
-                target_step_indices = [
-                    i for i in subgraph.nodes if subgraph.in_degree(i) > 0
-                ]
-                target_step_indices = sorted(target_step_indices)
+                target_step_indices = sorted(
+                    [i for i in subgraph.nodes if subgraph.in_degree(i) > 0]
+                )
             else:
                 target_step_indices = [root]
             tagged_steps = "\n".join(
                 f"<step_{i}>\n{subgraph.nodes[i]['content']}\n</step_{i}>"
-                for i in subgraph.nodes
+                for i in sorted(subgraph.nodes)
             )
             for step_idx in target_step_indices:
-                target_step = f"<step_{step_idx}>\n{sample['steps'][step_idx]}\n</step_{step_idx}>"
+                # target_step = f"<step_{step_idx}>\n{sample['steps'][step_idx]}\n</step_{step_idx}>"
                 user_input = self.prompt_template.format(
                     problem=sample["problem"],
                     tagged_steps=tagged_steps,
-                    target_step=target_step,
+                    idx=step_idx,
                 )
                 step_results = self.client(
                     batch_messages=[[{"role": "user", "content": user_input}]],
