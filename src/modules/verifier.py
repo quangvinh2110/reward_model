@@ -243,11 +243,11 @@ class LogicFlowVerifier(Verifier):
             succs = list(graph.successors(node))
             if any(succ != node + 1 for succ in succs):
                 root_nodes.add(node)
-            elif graph.in_degree(node) >= 2 or graph.in_degree(node) == 0:
-                root_nodes.add(node)
+            # elif graph.in_degree(node) >= 2 or graph.in_degree(node) == 0:
+            #     root_nodes.add(node)
 
         root_nodes.add(last_idx)
-        root_nodes.add(0)
+        # root_nodes.add(0)
         return sorted(list(root_nodes))
 
     def _build_subgraph(
@@ -277,7 +277,10 @@ class LogicFlowVerifier(Verifier):
         solution_graph = nx.DiGraph()
         for step_idx in range(len(sample["steps"])):
             solution_graph.add_node(
-                step_idx, content=sample["steps"][step_idx], resolved=False
+                step_idx,
+                content=sample["steps"][step_idx],
+                resolved=False,
+                state=None,
             )
         solution_graph.nodes[0]["resolved"] = True
         self.constructor(
@@ -289,18 +292,29 @@ class LogicFlowVerifier(Verifier):
 
         for root in root_lst:
             subgraph = self._build_subgraph(solution_graph, root, root_lst)
-            if len(subgraph.nodes) > 1:
-                target_step_indices = sorted(
-                    [i for i in subgraph.nodes if subgraph.in_degree(i) > 0]
-                )
-            else:
-                target_step_indices = [root]
-            tagged_steps = "\n".join(
-                f"<step_{i}>\n{subgraph.nodes[i]['content']}\n</step_{i}>"
-                for i in sorted(subgraph.nodes)
+            target_step_indices = sorted(
+                [i for i in subgraph.nodes if subgraph.nodes[i]["state"] is None]
             )
+            # tagged_steps = "\n".join(
+            #     f"<step_{i}>\n{subgraph.nodes[i]['content']}\n</step_{i}>"
+            #     for i in sorted(subgraph.nodes)
+            # )
             for step_idx in target_step_indices:
-                # target_step = f"<step_{step_idx}>\n{sample['steps'][step_idx]}\n</step_{step_idx}>"
+                tagged_steps = []
+                tagged_step_indices = [subgraph.predecessors(step_idx)] + [step_idx]
+                for i in sorted(subgraph.nodes):
+                    if i == tagged_step_indices[-1] + 1:
+                        tagged_step_indices.apppend(i)
+                if max(solution_graph.nodes) not in tagged_step_indices:
+                    tagged_step_indices.append(max(solution_graph.nodes))
+                for i in sorted(solution_graph.nodes):
+                    if i in tagged_step_indices:
+                        tagged_steps.append(
+                            f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
+                        )
+                    elif len(tagged_steps) == 0 or tagged_steps[-1] != "...":
+                        tagged_steps.append("...")
+                tagged_steps = "\n".join(tagged_steps)
                 user_input = self.prompt_template.format(
                     problem=sample["problem"],
                     tagged_steps=tagged_steps,
