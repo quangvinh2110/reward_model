@@ -1,14 +1,14 @@
 #!/bin/bash
 export API_KEY=
-API_ENDPOINT="http://10.254.138.192:9002"
-MODEL="Meta-Llama-3-70B-Instruct"
+API_ENDPOINT="http://10.254.138.189:8107"
+MODEL="Qwen2.5-32B-Instruct"
 OUTPUT_DIR="/raid/vinh/resources/results"
 CONFIGS="gsm8k math olympiadbench omnimath"
 DATASET_PATH="/raid/vinh/resources/datasets/ProcessBench"
 # VERIFIER_TYPE="sequential"
 # VERIFIER_TYPE="stepwise"
-# VERIFIER_TYPE="parc"
-VERIFIER_TYPE="logicflow"
+VERIFIER_TYPE="parc"
+# VERIFIER_TYPE="logicflow"
 TEMPERATURE=0
 TOP_P=0.8
 TOP_K=1

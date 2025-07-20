@@ -8,9 +8,9 @@ DATASET_PATH="/raid/vinh/resources/datasets/ProcessBench"
 # VERIFIER_TYPE="sequential"
 # VERIFIER_TYPE="stepwise"
 VERIFIER_TYPE="parc"
-TEMPERATURE=0.6
-TOP_P=0.95
-TOP_K=-1
+TEMPERATURE=0
+TOP_P=0.8
+TOP_K=1
 MAX_TOKENS=4096
 
 # Run evaluation with the new verifier API
