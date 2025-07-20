@@ -91,7 +91,7 @@ def parse_args():
         help="Maximum number of tokens to generate (default: 8192)",
     )
     parser.add_argument(
-        "--sample",
+        "--sample_size",
         type=int,
         default=100,
         help="Number of samples to evaluate from each dataset (default: 100). Use -1 to evaluate the entire dataset.",
@@ -160,12 +160,12 @@ def main():
         dataset = load_from_disk(os.path.join(args.dataset_path, config)).shuffle(
             seed=42
         )
-        if args.sample is not None and args.sample > 0:
-            dataset = dataset.select(range(args.sample))
+        if args.sample_size is not None and args.sample_size > 0:
+            dataset = dataset.select(range(args.sample_size))
 
         # Select a subset of the dataset if --sample is set to a positive integer
-        if args.sample is not None and args.sample > 0:
-            num_samples = min(args.sample, len(dataset))
+        if args.sample_size is not None and args.sample_size > 0:
+            num_samples = min(args.sample_size, len(dataset))
             input_data = dataset.select(range(num_samples))
         else:
             # Use the full dataset when --sample is -1 or 0

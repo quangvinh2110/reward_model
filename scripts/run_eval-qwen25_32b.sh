@@ -27,4 +27,5 @@ python /raid/vinh/reward_model/run_eval.py \
     --top_p $TOP_P \
     --top_k $TOP_K \
     --max_tokens $MAX_TOKENS \
+    --sample_size 250 \
     # --enable_thinking

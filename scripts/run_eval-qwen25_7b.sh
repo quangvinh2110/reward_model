@@ -9,7 +9,7 @@ DATASET_PATH="/raid/vinh/resources/datasets/ProcessBench"
 # VERIFIER_TYPE="stepwise"
 VERIFIER_TYPE="parc"
 # VERIFIER_TYPE="logicflow"
-TEMPERATURE=0
+TEMPERATURE=0.7
 TOP_P=0.8
 TOP_K=1
 MAX_TOKENS=4096
@@ -27,4 +27,5 @@ python /raid/vinh/reward_model/run_eval.py \
     --top_p $TOP_P \
     --top_k $TOP_K \
     --max_tokens $MAX_TOKENS \
+    --sample_size 250 \
     # --enable_thinking
