@@ -4,6 +4,9 @@ from tqdm import tqdm
 from multiprocessing import Pool
 from collections import Counter
 import networkx as nx
+import time
+import json
+from networkx.readwrite import node_link_data
 
 from .constructor import AutoConstructor
 from ..utils.io import read_txt
@@ -44,17 +47,14 @@ class Verifier(ABC):
         samples: List[dict],
         num_workers: int = 4,
         **generation_kwargs,
-    ) -> List[str]:
-        """Verify multiple samples using multiprocessing, or sequentially if num_workers == 1."""
+    ) -> List[dict]:
+        """Verify multiple samples using multiprocessing, or sequentially if num_workers == 1. Returns a list of dicts."""
         if not samples:
             return []
-
-        # Prepare arguments for the helper function
         tasks = [
             (self._verify_one, i, sample, generation_kwargs)
             for i, sample in enumerate(samples)
         ]
-
         results = []
         with Pool(processes=num_workers) as pool:
             if self.show_progress:
@@ -66,10 +66,8 @@ class Verifier(ABC):
                 )
             else:
                 results = list(pool.imap_unordered(_verify_one_helper, tasks))
-
-        # Sort results by ID to maintain original order
-        results.sort(key=lambda x: x[0])
-        return [result[1] for result in results]
+        results.sort(key=lambda x: x["id"])
+        return results
 
 
 class SequentialVerifier(Verifier):
@@ -79,10 +77,8 @@ class SequentialVerifier(Verifier):
             "/raid/vinh/reward_model/resources/prompt_templates/SEQUENTIAL_VERIFICATION.txt"
         )
 
-    def _verify_one(
-        self, id: int, sample: dict, **generation_kwargs
-    ) -> Tuple[int, str]:
-        """Verify a single sample (dictionary)."""
+    def _verify_one(self, id: int, sample: dict, **generation_kwargs) -> dict:
+        start_time = time.time()
         tagged_steps = "\n".join(
             [
                 f"<step_{i}>\n{step}\n</step_{i}>"
@@ -96,7 +92,13 @@ class SequentialVerifier(Verifier):
             batch_messages=[[{"role": "user", "content": user_input}]],
             **generation_kwargs,
         )
-        return id, responses[0]
+        elapsed = time.time() - start_time
+        return {
+            "id": id,
+            "generated_critique": responses[0],
+            "graph": None,
+            "time": elapsed,
+        }
 
 
 class StepwiseVerifier(Verifier):
@@ -105,10 +107,8 @@ class StepwiseVerifier(Verifier):
             "/raid/vinh/reward_model/resources/prompt_templates/STEPWISE_VERIFICATION.txt"
         )
 
-    def _verify_one(
-        self, id: int, sample: dict, **generation_kwargs
-    ) -> Tuple[int, str]:
-        """Verify a single sample (dictionary) with early stopping and majority voting."""
+    def _verify_one(self, id: int, sample: dict, **generation_kwargs) -> dict:
+        start_time = time.time()
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
         for step_idx in range(len(sample["steps"])):
             tagged_steps = "\n".join(
@@ -120,7 +120,6 @@ class StepwiseVerifier(Verifier):
             user_input = self.prompt_template.format(
                 problem=sample["problem"], tagged_steps=tagged_steps
             )
-            # Create chat completion request
             step_results = self.client(
                 batch_messages=[[{"role": "user", "content": user_input}]],
                 **generation_kwargs,
@@ -133,14 +132,36 @@ class StepwiseVerifier(Verifier):
             if majority == "0":
                 for result in results:
                     result.append(f"Final answer: \\boxed{{{step_idx}}}")
-                return (id, ["<|sep|>".join(result) for result in results])
+                elapsed = time.time() - start_time
+                return {
+                    "id": id,
+                    "generated_critique": [
+                        "<|sep|>".join(result) for result in results
+                    ],
+                    "graph": None,
+                    "time": elapsed,
+                }
             if step_idx == sample["label"]:
                 for result in results:
-                    result.append(r"Final answer: \boxed{None}")
-                return (id, ["<|sep|>".join(result) for result in results])
-            for result in results:
-                result.append("Final answer: \\boxed{-1}")
-        return (id, ["<|sep|>".join(result) for result in results])
+                    result.append(r"Final answer: \\boxed{None}")
+                elapsed = time.time() - start_time
+                return {
+                    "id": id,
+                    "generated_critique": [
+                        "<|sep|>".join(result) for result in results
+                    ],
+                    "graph": None,
+                    "time": elapsed,
+                }
+        for result in results:
+            result.append("Final answer: \\boxed{-1}")
+        elapsed = time.time() - start_time
+        return {
+            "id": id,
+            "generated_critique": ["<|sep|>".join(result) for result in results],
+            "graph": None,
+            "time": elapsed,
+        }
 
 
 class ParcVerifier(Verifier):
@@ -158,9 +179,8 @@ class ParcVerifier(Verifier):
             "/raid/vinh/reward_model/resources/prompt_templates/PERL_VERIFICATION.txt"
         )
 
-    def _verify_one(
-        self, id: int, sample: dict, **generation_kwargs
-    ) -> Tuple[int, str]:
+    def _verify_one(self, id: int, sample: dict, **generation_kwargs) -> dict:
+        start_time = time.time()
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
         solution_graph = nx.DiGraph()
         for step_idx in range(len(sample["steps"])):
@@ -188,7 +208,6 @@ class ParcVerifier(Verifier):
                 tracked_premises=tracked_premises,
                 target_step=target_step,
             )
-            # Create chat completion request
             step_results = self.client(
                 batch_messages=[[{"role": "user", "content": user_input}]],
                 **generation_kwargs,
@@ -201,14 +220,36 @@ class ParcVerifier(Verifier):
             if majority == "0":
                 for result in results:
                     result.append(f"Final answer: \\boxed{{{step_idx}}}")
-                return (id, ["<|sep|>".join(result) for result in results])
+                elapsed = time.time() - start_time
+                return {
+                    "id": id,
+                    "generated_critique": [
+                        "<|sep|>".join(result) for result in results
+                    ],
+                    "graph": json.dumps(node_link_data(solution_graph)),
+                    "time": elapsed,
+                }
             if step_idx == sample["label"]:
                 for result in results:
-                    result.append(r"Final answer: \boxed{None}")
-                return (id, ["<|sep|>".join(result) for result in results])
+                    result.append(r"Final answer: \\boxed{None}")
+                elapsed = time.time() - start_time
+                return {
+                    "id": id,
+                    "generated_critique": [
+                        "<|sep|>".join(result) for result in results
+                    ],
+                    "graph": json.dumps(node_link_data(solution_graph)),
+                    "time": elapsed,
+                }
         for result in results:
             result.append("Final answer: \\boxed{-1}")
-        return (id, ["<|sep|>".join(result) for result in results])
+        elapsed = time.time() - start_time
+        return {
+            "id": id,
+            "generated_critique": ["<|sep|>".join(result) for result in results],
+            "graph": json.dumps(node_link_data(solution_graph)),
+            "time": elapsed,
+        }
 
 
 class LogicFlowVerifier(Verifier):
@@ -376,9 +417,8 @@ class LogicFlowVerifier(Verifier):
             result.append("Final answer: \\boxed{-1}")
         return ["<|sep|>".join(result) for result in results]
 
-    def _verify_one(
-        self, id: int, sample: dict, **generation_kwargs
-    ) -> Tuple[int, str]:
+    def _verify_one(self, id: int, sample: dict, **generation_kwargs) -> dict:
+        start_time = time.time()
         solution_graph = nx.DiGraph()
         for step_idx in range(len(sample["steps"])):
             solution_graph.add_node(
@@ -394,14 +434,14 @@ class LogicFlowVerifier(Verifier):
             **generation_kwargs,
         )
         if self.level == "step":
-            return id, self._verify_one_step(
+            generated_critique = self._verify_one_step(
                 problem=sample["problem"],
                 solution_graph=solution_graph,
                 label=sample["label"],
                 **generation_kwargs,
             )
         elif self.level == "subgraph":
-            return id, self._verify_one_subgraph(
+            generated_critique = self._verify_one_subgraph(
                 problem=sample["problem"],
                 solution_graph=solution_graph,
                 label=sample["label"],
@@ -409,6 +449,13 @@ class LogicFlowVerifier(Verifier):
             )
         else:
             raise ValueError(f"Unknown level: {self.level}")
+        elapsed = time.time() - start_time
+        return {
+            "id": id,
+            "generated_critique": generated_critique,
+            "graph": json.dumps(node_link_data(solution_graph)),
+            "time": elapsed,
+        }
 
 
 class AutoVerifier:

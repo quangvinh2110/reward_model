@@ -172,23 +172,22 @@ def main():
             input_data = dataset
 
         # Generate critiques using the verifier
-        generated_critiques = verifier(
+        generated_results = verifier(
             input_data.to_list(), num_workers=16, **generation_kwargs
         )
 
         res_data = []
         for i in range(len(input_data)):
             d = input_data[i].copy()
-
+            result = generated_results[i]
             if not args.use_voting:
-                pred = parse_from_boxed(generated_critiques[i][0])
+                pred = parse_from_boxed(result["generated_critique"][0])
                 try:
                     pred = int(pred)
                 except:
                     pred = None
             else:
-                # For voting, we need to handle multiple outputs
-                preds = [parse_from_boxed(e) for e in generated_critiques[i]]
+                preds = [parse_from_boxed(e) for e in result["generated_critique"]]
                 preds = [e for e in preds if e is not None]
                 if len(preds) == 0:
                     pred = None
@@ -198,15 +197,11 @@ def main():
                         pred = int(pred)
                     except:
                         pred = None
-
-            d["generated_critique"] = (
-                generated_critiques[i]
-                if not args.use_voting
-                else generated_critiques[i : i + args.voting_n]
-            )
+            d["generated_critique"] = result["generated_critique"]
+            d["graph"] = result["graph"]
+            d["time"] = result["time"]
             d["prediction"] = pred
             d["match"] = pred == d["label"]
-
             res_data.append(d)
 
         error_data = [e for e in res_data if e["label"] != -1]
