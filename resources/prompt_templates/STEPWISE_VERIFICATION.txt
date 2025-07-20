@@ -8,6 +8,6 @@ The following is a math problem and a solution (split into steps, enclosed with 
 
 {tagged_steps}
 
-Your task is to review and critique ONLY step {idx}, considering the context of the math problem and the solution. If an error is found in step {idx}, return 0. Otherwise, return 1.
+Your task is to review and critique ONLY step {idx}, considering the context of the math problem and the solution. You must reason and explain clearly BEFORE go to your final answer. Do NOT directly skip to the conclusion or provide your final answer before reasoning. If an error is found in step {idx}, return 0. Otherwise, return 1.
 
 Please put your final answer (i.e., 1 or 0) in \boxed{{}}.

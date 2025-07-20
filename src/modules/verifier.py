@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from abc import ABC, abstractmethod
 from tqdm import tqdm
 from multiprocessing import Pool
@@ -269,24 +269,14 @@ class LogicFlowVerifier(Verifier):
 
         return graph.subgraph(visited).copy()
 
-    def _verify_one(
-        self, id: int, sample: dict, **generation_kwargs
+    def _verify_one_step(
+        self,
+        problem: str,
+        solution_graph: nx.DiGraph,
+        label: Optional[int] = None,
+        **generation_kwargs,
     ) -> Tuple[int, str]:
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
-        solution_graph = nx.DiGraph()
-        for step_idx in range(len(sample["steps"])):
-            solution_graph.add_node(
-                step_idx,
-                content=sample["steps"][step_idx],
-                resolved=False,
-                state=None,
-            )
-        solution_graph.nodes[0]["resolved"] = True
-        self.constructor(
-            problem=sample["problem"],
-            solution_graph=solution_graph,
-            **generation_kwargs,
-        )
         root_lst = self._identify_root_nodes(solution_graph)
 
         for root in root_lst:
@@ -305,7 +295,7 @@ class LogicFlowVerifier(Verifier):
             tagged_steps = "\n".join(tagged_steps)
             for step_idx in target_step_indices:
                 user_input = self.prompt_template.format(
-                    problem=sample["problem"],
+                    problem=problem,
                     tagged_steps=tagged_steps,
                     idx=step_idx,
                 )
@@ -320,16 +310,105 @@ class LogicFlowVerifier(Verifier):
                 if majority == "0":
                     for result in results:
                         result.append(f"Final answer: \\boxed{{{step_idx}}}")
-                    return (id, ["<|sep|>".join(result) for result in results])
-                if step_idx == sample["label"]:
+                    return ["<|sep|>".join(result) for result in results]
+                if label is not None and step_idx == label:
                     for result in results:
                         result.append(r"Final answer: \boxed{None}")
-                    return (id, ["<|sep|>".join(result) for result in results])
+                    return ["<|sep|>".join(result) for result in results]
                 solution_graph.nodes[step_idx]["state"] = True
 
         for result in results:
             result.append("Final answer: \\boxed{-1}")
-        return (id, ["<|sep|>".join(result) for result in results])
+        return ["<|sep|>".join(result) for result in results]
+
+    def _verify_one_subgraph(
+        self,
+        problem: str,
+        solution_graph: nx.DiGraph,
+        label: Optional[int] = None,
+        **generation_kwargs,
+    ) -> Tuple[int, str]:
+        results = [[] for _ in range(generation_kwargs.get("n", 1))]
+        root_lst = self._identify_root_nodes(solution_graph)
+
+        for root in root_lst:
+            subgraph = self._build_subgraph(solution_graph, root, root_lst)
+            target_step_indices = sorted(
+                [i for i in subgraph.nodes if subgraph.nodes[i]["state"] is None]
+            )
+            tagged_steps = []
+            for i in sorted(solution_graph.nodes):
+                if i in list(subgraph.nodes) or i == max(solution_graph.nodes):
+                    tagged_steps.append(
+                        f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
+                    )
+                elif len(tagged_steps) == 0 or tagged_steps[-1] != "...":
+                    tagged_steps.append("...")
+            tagged_steps = "\n".join(tagged_steps)
+            user_input = self.prompt_template.format(
+                problem=problem,
+                tagged_steps=tagged_steps,
+                indices=", ".join(map(str, target_step_indices)),
+            )
+            subgraph_results = self.client(
+                batch_messages=[[{"role": "user", "content": user_input}]],
+                **generation_kwargs,
+            )[0]
+            for result, subgraph_result in zip(results, subgraph_results):
+                result.append(subgraph_result)
+            parsed = [
+                parse_from_boxed(subgraph_result)
+                for subgraph_result in subgraph_results
+            ]
+            majority, _ = Counter(parsed).most_common(1)[0]
+            if majority != "-1":
+                for result in results:
+                    result.append(f"Final answer: \\boxed{{{majority}}}")
+                return ["<|sep|>".join(result) for result in results]
+            if label is not None and label in target_step_indices:
+                for result in results:
+                    result.append(r"Final answer: \boxed{None}")
+                return ["<|sep|>".join(result) for result in results]
+            for step_idx in target_step_indices:
+                solution_graph.nodes[step_idx]["state"] = True
+
+        for result in results:
+            result.append("Final answer: \\boxed{-1}")
+        return ["<|sep|>".join(result) for result in results]
+
+    def _verify_one(
+        self, id: int, sample: dict, **generation_kwargs
+    ) -> Tuple[int, str]:
+        solution_graph = nx.DiGraph()
+        for step_idx in range(len(sample["steps"])):
+            solution_graph.add_node(
+                step_idx,
+                content=sample["steps"][step_idx],
+                resolved=False,
+                state=None,
+            )
+        solution_graph.nodes[0]["resolved"] = True
+        self.constructor(
+            problem=sample["problem"],
+            solution_graph=solution_graph,
+            **generation_kwargs,
+        )
+        if self.level == "step":
+            return id, self._verify_one_step(
+                problem=sample["problem"],
+                solution_graph=solution_graph,
+                label=sample["label"],
+                **generation_kwargs,
+            )
+        elif self.level == "subgraph":
+            return id, self._verify_one_subgraph(
+                problem=sample["problem"],
+                solution_graph=solution_graph,
+                label=sample["label"],
+                **generation_kwargs,
+            )
+        else:
+            raise ValueError(f"Unknown level: {self.level}")
 
 
 class AutoVerifier:

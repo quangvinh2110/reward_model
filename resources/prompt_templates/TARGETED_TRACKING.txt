@@ -1,11 +1,14 @@
-You are an expert in mathematical logic and reasoning. You are given a math problem (labeled as Step -1), a partial solution consisting of a set of indexed steps, a target step, and its previously known direct premises (optional). Your goal is to (1) identify **only the direct premises** from the partial solution that the target step depends on; and (2) determine if the target step is resolved.
+You are an expert in mathematical logic and reasoning. You are given a math problem, a partial solution consisting of a set of indexed steps from 0, a target step, and its previously known direct premises (optional). Your goal is to (1) identify **only the direct premises** from the partial solution that the target step depends on; and (2) determine if the target step is resolved.
 
 Definitions:
 - Premise: Step A is a premise for Step B if Step B uses any fact, object, lemma, or conclusion derived in Step A. 
 - Resolved: The target step is "resolved" if all of its necessary premises are included in the union of the provided solution set and its known premises. If there are still missing premises outside these, then it is unresolved.
 
+Instruction:
+Do NOT re-derive or re-prove any facts in the target step; instead, for each fact or object it uses, explicitly identify its source (e.g. the problem statement, a step in the solution set, or a known premise). If any such source is missing, mark the step as unresolved.
+
 Task:
-1. Briefly explain used information (e.g. lemmas, results, object,...) in target step come from which steps from the solution set to find premises, and whether these premises—together with the previously known premises—are enough.
+1. Briefly explain what information (e.g. lemmas, results, object, conclusion, etc.) is used in the target step and trace each to its exact source.
 2. Based on your reasoning, generate a JSON object that strictly adheres to the following format:
 ```json
 {{
@@ -27,8 +30,8 @@ Example JSON object: ```json
 [Partial Solution]
 {tagged_steps}
 
+[Known Premises]
+{tracked_premises}
+
 [Target Step]
 {target_step}
-
-[Previously Known Premises]
-{tracked_premises}

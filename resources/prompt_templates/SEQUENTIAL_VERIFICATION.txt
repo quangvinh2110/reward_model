@@ -8,6 +8,6 @@ The following is a math problem and a solution (split into steps, enclosed with 
 
 {tagged_steps}
 
-Your task is to review and critique the solution step by step. Once you identify an error in a step, return the index of the step where the earliest error occurs. Otherwise, return the index of -1 (which typically denotes "not found").
+Your task is to review and critique the solution step by step. For each step, you must reason and explain clearly BEFORE go to your final answer. Do NOT directly skip to the conclusion or provide your answer before reasoning. Once you identify an error in a step, return the index of the step where the earliest error occurs. Otherwise, return the index of -1 (which typically denotes "not found").
 
 Please put your final answer (i.e., the index) in \boxed{{}}.
