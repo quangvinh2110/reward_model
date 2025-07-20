@@ -4,6 +4,7 @@ import os
 import json
 from collections import Counter
 from datasets import load_from_disk
+from datetime import datetime
 from src.utils.data import parse_from_boxed
 from src.modules.verifier import AutoVerifier
 from src.modules.client import OpenaiClient
@@ -27,7 +28,7 @@ def parse_args():
         "--verifier_type",
         type=str,
         default="sequential",
-        choices=["sequential", "stepwise", "perl", "logicflow"],
+        choices=["sequential", "stepwise", "parc", "logicflow"],
         help="Type of verifier to use (sequential: full solution at once, stepwise: step by step)",
     )
     parser.add_argument(
@@ -90,6 +91,12 @@ def parse_args():
         help="Maximum number of tokens to generate (default: 8192)",
     )
     parser.add_argument(
+        "--sample",
+        type=int,
+        default=100,
+        help="Number of samples to evaluate from each dataset (default: 100). Use -1 to evaluate the entire dataset.",
+    )
+    parser.add_argument(
         "--enable_thinking",
         action="store_true",
         help="Whether to enable thinking mode in tokenizer (default: False)",
@@ -134,21 +141,35 @@ def main():
         args.configs = ["gsm8k", "math", "olympiadbench", "omnimath"]
 
     for config in args.configs:
+        # Get current datetime for output directory
+        current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+
         if not args.use_voting:
-            output_dir = os.path.join(args.output_dir, args.model, args.verifier_type)
+            output_dir = os.path.join(
+                args.output_dir, args.model, args.verifier_type, current_time
+            )
         else:
             output_dir = os.path.join(
                 args.output_dir,
                 f"{args.model}_voting_{args.voting_n}",
                 args.verifier_type,
+                current_time,
             )
         os.makedirs(output_dir, exist_ok=True)
 
-        input_data = (
-            load_from_disk(os.path.join(args.dataset_path, config))
-            .shuffle(seed=42)
-            .select(range(100))
+        dataset = load_from_disk(os.path.join(args.dataset_path, config)).shuffle(
+            seed=42
         )
+        if args.sample is not None and args.sample > 0:
+            dataset = dataset.select(range(args.sample))
+
+        # Select a subset of the dataset if --sample is set to a positive integer
+        if args.sample is not None and args.sample > 0:
+            num_samples = min(args.sample, len(dataset))
+            input_data = dataset.select(range(num_samples))
+        else:
+            # Use the full dataset when --sample is -1 or 0
+            input_data = dataset
 
         # Generate critiques using the verifier
         generated_critiques = verifier(

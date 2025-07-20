@@ -5,12 +5,13 @@ MODEL="Meta-Llama-3-70B-Instruct"
 OUTPUT_DIR="/raid/vinh/resources/results"
 CONFIGS="gsm8k math olympiadbench omnimath"
 DATASET_PATH="/raid/vinh/resources/datasets/ProcessBench"
-VERIFIER_TYPE="sequential"
+# VERIFIER_TYPE="sequential"
 # VERIFIER_TYPE="stepwise"
-VERIFIER_TYPE="parc"
-TEMPERATURE=0.6
+# VERIFIER_TYPE="parc"
+VERIFIER_TYPE="logicflow"
+TEMPERATURE=0
 TOP_P=0.95
-TOP_K=20
+TOP_K=1
 MAX_TOKENS=4096
 
 # Run evaluation with the new verifier API

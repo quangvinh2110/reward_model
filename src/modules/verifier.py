@@ -216,10 +216,12 @@ class LogicFlowVerifier(Verifier):
         self,
         client: OpenaiClient,
         constructor_type: str = "targeted",
+        level: str = "step",
         show_progress: bool = True,
     ):
         super().__init__(client, show_progress)
         self.constructor = AutoConstructor.from_type(constructor_type, client=client)
+        self.level = level
 
     def _get_prompt_template(self) -> str:
         return read_txt(
@@ -237,17 +239,14 @@ class LogicFlowVerifier(Verifier):
         if graph.number_of_nodes() == 0:
             return []
 
-        last_idx = max(graph.nodes())
         root_nodes = set()
         for node in graph.nodes():
             succs = list(graph.successors(node))
-            if any(succ != node + 1 for succ in succs):
+            if len(succs) == 0 or any(succ != node + 1 for succ in succs):
                 root_nodes.add(node)
             # elif graph.in_degree(node) >= 2 or graph.in_degree(node) == 0:
             #     root_nodes.add(node)
 
-        root_nodes.add(last_idx)
-        # root_nodes.add(0)
         return sorted(list(root_nodes))
 
     def _build_subgraph(
@@ -295,26 +294,16 @@ class LogicFlowVerifier(Verifier):
             target_step_indices = sorted(
                 [i for i in subgraph.nodes if subgraph.nodes[i]["state"] is None]
             )
-            # tagged_steps = "\n".join(
-            #     f"<step_{i}>\n{subgraph.nodes[i]['content']}\n</step_{i}>"
-            #     for i in sorted(subgraph.nodes)
-            # )
+            tagged_steps = []
+            for i in sorted(solution_graph.nodes):
+                if i in list(subgraph.nodes) or i == max(solution_graph.nodes):
+                    tagged_steps.append(
+                        f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
+                    )
+                elif len(tagged_steps) == 0 or tagged_steps[-1] != "...":
+                    tagged_steps.append("...")
+            tagged_steps = "\n".join(tagged_steps)
             for step_idx in target_step_indices:
-                tagged_steps = []
-                tagged_step_indices = [subgraph.predecessors(step_idx)] + [step_idx]
-                for i in sorted(subgraph.nodes):
-                    if i == tagged_step_indices[-1] + 1:
-                        tagged_step_indices.apppend(i)
-                if max(solution_graph.nodes) not in tagged_step_indices:
-                    tagged_step_indices.append(max(solution_graph.nodes))
-                for i in sorted(solution_graph.nodes):
-                    if i in tagged_step_indices:
-                        tagged_steps.append(
-                            f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
-                        )
-                    elif len(tagged_steps) == 0 or tagged_steps[-1] != "...":
-                        tagged_steps.append("...")
-                tagged_steps = "\n".join(tagged_steps)
                 user_input = self.prompt_template.format(
                     problem=sample["problem"],
                     tagged_steps=tagged_steps,
@@ -336,6 +325,8 @@ class LogicFlowVerifier(Verifier):
                     for result in results:
                         result.append(r"Final answer: \boxed{None}")
                     return (id, ["<|sep|>".join(result) for result in results])
+                solution_graph.nodes[step_idx]["state"] = True
+
         for result in results:
             result.append("Final answer: \\boxed{-1}")
         return (id, ["<|sep|>".join(result) for result in results])
