@@ -118,7 +118,7 @@ class StepwiseVerifier(Verifier):
                 ]
             )
             user_input = self.prompt_template.format(
-                problem=sample["problem"], tagged_steps=tagged_steps
+                problem=sample["problem"], tagged_steps=tagged_steps, idx=step_idx
             )
             step_results = self.client(
                 batch_messages=[[{"role": "user", "content": user_input}]],
@@ -226,7 +226,7 @@ class ParcVerifier(Verifier):
                     "generated_critique": [
                         "<|sep|>".join(result) for result in results
                     ],
-                    "graph": json.dumps(node_link_data(solution_graph)),
+                    "graph": json.dumps(node_link_data(solution_graph, edges="edges")),
                     "time": elapsed,
                 }
             if step_idx == sample["label"]:
@@ -238,7 +238,7 @@ class ParcVerifier(Verifier):
                     "generated_critique": [
                         "<|sep|>".join(result) for result in results
                     ],
-                    "graph": json.dumps(node_link_data(solution_graph)),
+                    "graph": json.dumps(node_link_data(solution_graph, edges="edges")),
                     "time": elapsed,
                 }
         for result in results:
@@ -247,7 +247,7 @@ class ParcVerifier(Verifier):
         return {
             "id": id,
             "generated_critique": ["<|sep|>".join(result) for result in results],
-            "graph": json.dumps(node_link_data(solution_graph)),
+            "graph": json.dumps(node_link_data(solution_graph, edges="edges")),
             "time": elapsed,
         }
 
@@ -453,7 +453,7 @@ class LogicFlowVerifier(Verifier):
         return {
             "id": id,
             "generated_critique": generated_critique,
-            "graph": json.dumps(node_link_data(solution_graph)),
+            "graph": json.dumps(node_link_data(solution_graph, edges="edges")),
             "time": elapsed,
         }
 

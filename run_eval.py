@@ -140,9 +140,8 @@ def main():
     if args.configs is None:
         args.configs = ["gsm8k", "math", "olympiadbench", "omnimath"]
 
+    current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     for config in args.configs:
-        # Get current datetime for output directory
-        current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
         if not args.use_voting:
             output_dir = os.path.join(
