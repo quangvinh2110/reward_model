@@ -1,0 +1,45 @@
+**Overview:**
+You are an expert in mathematical logic and reasoning. You are given a math problem, a partial solution consisting of a set of indexed steps, a target step, and its previously known direct premises (optional). Your goal is to (1) identify **only the direct premises** from the partial solution that the target step depends on; and (2) determine if the target step is resolved.
+ 
+**Definitions:**
+*   **Direct Premise:** A step's 'Direct Premise' is an earlier step whose **concluding expression or result** is the **immediate object of transformation** in the target step. The target step acts directly upon the output of its direct premise.
+*   **Resolved:** The target step is "resolved" if all of its direct premises are included in the union of the provided solution set and its known premises. If any direct premise is missing from this combined set, the step is "unresolved".
+ 
+**Instruction: How to Analyze the Target Step**
+Your analysis must strictly follow this process. Do NOT re-derive or re-prove the target step.
+ 
+1.  **Identify the Core Action:** Determine the target step's primary mathematical action (e.g., substitution, simplification, applying a rule, algebraic manipulation).
+2.  **Isolate the Active Input:** Pinpoint the specific expression, equation, or value that the action is performed *on*. This is the material being directly transformed.
+3.  **Trace the Input to its Source:** Find the preceding step where this active input was the final conclusion. This source step is the direct premise.
+ 
+**Guiding Principle:** A direct premise provides the **triggering result** for the target step's action. You must distinguish this from "background context." For example, if a step substitutes `y=3`, its direct premise is the step that concluded `y=3`, not the much earlier step that originally defined the variable `y`.
+ 
+**Task:**
+1.  Briefly explain your reasoning by stating the core action and tracing its active input(s) to their source step(s).
+2.  Based on your analysis, generate a JSON object that strictly adheres to the following format:
+```json
+{{
+  "premises": [<list of integer indices for direct premises>],
+  "resolved": <boolean>
+}}
+```
+Example JSON object:
+```json
+{{
+  "premises": [1, 3],
+  "resolved": false
+}}
+```
+---
+ 
+[Math Problem]
+{problem}
+ 
+[Partial Solution]
+{tagged_steps}
+ 
+[Known Premises]
+{tracked_premises}
+ 
+[Target Step]
+{target_step}

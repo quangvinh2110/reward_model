@@ -431,6 +431,7 @@ class LogicFlowVerifier(Verifier):
         self.constructor(
             problem=sample["problem"],
             solution_graph=solution_graph,
+            max_window_size=10,
             **generation_kwargs,
         )
         if self.level == "step":

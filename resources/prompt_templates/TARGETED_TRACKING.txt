@@ -12,13 +12,13 @@ Task:
 2. Based on your reasoning, generate a JSON object that strictly adheres to the following format:
 ```json
 {{
-  "premises": [<list of premise indices> ],
+  "premises": [<list of premise indices>],
   "resolved": <boolean>
 }}
 ```
 Example JSON object: ```json
 {{
-  "premises": [1, 3 ],
+  "premises": [1, 3],
   "resolved": false
 }}
 ```
