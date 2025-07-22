@@ -29,20 +29,24 @@ def load_config(config_path):
     else:
         raise ValueError("Config file must be .yaml, .yml, or .json")
     # Set defaults if not present in config
-    config.setdefault("splits", ["gsm8k", "math", "olympiadbench", "omnimath"])
-    config.setdefault("verifier_type", "sequential")
-    config.setdefault("api_endpoint", None)
-    config.setdefault("model", None)
-    config.setdefault("output_dir", "./outputs")
-    config.setdefault("use_voting", False)
-    config.setdefault("voting_n", 8)
-    config.setdefault("dataset_path", "Qwen/ProcessBench")
-    config.setdefault("sample_size", 100)
-    config.setdefault("verifier_kwargs", {})
-    config.setdefault("construction_kwargs", {})
-    config.setdefault("generation_kwargs", {})
-    config["generation_kwargs"].setdefault("temperature", 0.0)
-    config["generation_kwargs"].setdefault("max_tokens", 8192)
+    if not (config["api_endpoint"] and config["model"]):
+        raise ValueError("api_endpoint and model must be provided in config")
+    config["splits"] = config["splits"] or [
+        "gsm8k",
+        "math",
+        "olympiadbench",
+        "omnimath",
+    ]
+    config["verifier_type"] = config["verifier_type"] or "sequential"
+    config["output_dir"] = config["output_dir"] or "/raid/vinh/resources/results"
+    config["use_voting"] = config["use_voting"] or False
+    config["voting_n"] = config["voting_n"] or 8
+    config["dataset_path"] = config["dataset_path"] or "Qwen/ProcessBench"
+    config["sample_size"] = config["sample_size"] or 100
+    config["verifier_kwargs"] = config["verifier_kwargs"] or {}
+    config["construction_kwargs"] = config["construction_kwargs"] or {}
+    config["generation_kwargs"] = config["generation_kwargs"] or {}
+    config["num_workers"] = config["num_workers"] or 16
     return config
 
 
@@ -105,7 +109,7 @@ def main():
 
         generated_results = verifier(
             input_data.to_list(),
-            num_workers=16,
+            num_workers=config["num_workers"],
             construction_kwargs=config["construction_kwargs"],
             generation_kwargs=config["generation_kwargs"],
         )

@@ -113,10 +113,8 @@ class TargetedConstructor:
         construction_kwargs: dict = {},
         generation_kwargs: dict = {},
     ) -> nx.DiGraph:
-        max_window_size = (
-            construction_kwargs.get("max_window_size", len(solution_graph.nodes))
-            if construction_kwargs
-            else len(solution_graph.nodes)
+        max_window_size = construction_kwargs.get(
+            "max_window_size", len(solution_graph.nodes)
         )
         generation_kwargs["n"] = 1
         if target_idx:
@@ -212,7 +210,6 @@ class HybridConstructor:
         construction_kwargs: dict = {},
         generation_kwargs: dict = {},
     ) -> nx.DiGraph:
-        construction_kwargs = construction_kwargs or {}
         max_window_size = construction_kwargs.get("max_window_size", 5)
         overlap_size = construction_kwargs.get("overlap_size", 1)
         for group_idx_list in group_index_generator(
