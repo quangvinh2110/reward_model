@@ -7,8 +7,8 @@ splits:
   - olympiadbench
   - omnimath
 verifier_type: parc
-verifier_kwargs: {}
-construction_kwargs: {}
+verifier_kwargs:
+construction_kwargs:
 generation_kwargs:
   temperature: 0.0
   top_p: 0.8

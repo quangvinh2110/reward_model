@@ -14,7 +14,7 @@ verifier_kwargs:
   prefix_size: -1
   suffix_size: 10
   show_progress: true
-construction_kwargs: {}
+construction_kwargs:
 generation_kwargs:
   temperature: 0.0
   top_p: 0.8
@@ -24,4 +24,3 @@ dataset_path: "/raid/vinh/resources/datasets/ProcessBench"
 sample_size: 250
 use_voting: false
 voting_n: 8
-enable_thinking: false
