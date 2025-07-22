@@ -4,7 +4,7 @@ from typing import Optional, List
 
 from ..utils.io import read_txt
 from ..utils.data import parse_from_json, to_int
-from .client import OpenaiClient
+from .client import Client
 
 
 def group_index_generator(
@@ -38,11 +38,24 @@ def group_index_generator(
             end = start + overlap_size
 
 
+class NullConstructor:
+    def __init__(self, client: Client):
+        self.client = client
+
+    def __call__(
+        self,
+        problem: str,
+        solution_graph: nx.DiGraph,
+        construction_kwargs: dict = {},
+    ) -> nx.DiGraph:
+        return solution_graph
+
+
 class TargetedConstructor:
 
     def __init__(
         self,
-        client: OpenaiClient,
+        client: Client,
     ):
         self.client = client
         self.prompt_template = read_txt(
@@ -141,7 +154,7 @@ class GroupedConstructor:
 
     def __init__(
         self,
-        client: OpenaiClient,
+        client: Client,
     ):
         self.client = client
         self.prompt_template = read_txt(
@@ -197,7 +210,7 @@ class GroupedConstructor:
 class HybridConstructor:
     def __init__(
         self,
-        client: OpenaiClient,
+        client: Client,
     ):
         self.client = client
         self.grouped_constructor = GroupedConstructor(client)
@@ -242,7 +255,7 @@ class HybridConstructor:
 class DacConstructor:
     def __init__(
         self,
-        client: OpenaiClient,
+        client: Client,
     ):
         self.client = client
         self.targeted_constructor = TargetedConstructor(client)
@@ -307,6 +320,7 @@ class AutoConstructor:
         "grouped": GroupedConstructor,
         "hybrid": HybridConstructor,
         "dac": DacConstructor,
+        "null": NullConstructor,
     }
 
     @classmethod

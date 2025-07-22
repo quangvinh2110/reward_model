@@ -11,7 +11,7 @@ from networkx.readwrite import node_link_data
 from .constructor import AutoConstructor
 from ..utils.io import read_txt
 from ..utils.data import parse_from_boxed
-from .client import OpenaiClient
+from .client import Client
 
 
 def _verify_one_helper(args):
@@ -23,7 +23,7 @@ def _verify_one_helper(args):
 class Verifier(ABC):
     def __init__(
         self,
-        client: OpenaiClient,
+        client: Client,
         show_progress: bool = True,
     ):
         self.client = client
@@ -177,7 +177,7 @@ class ParcVerifier(Verifier):
 
     def __init__(
         self,
-        client: OpenaiClient,
+        client: Client,
         show_progress: bool = True,
     ):
         super().__init__(client, show_progress)
@@ -267,7 +267,7 @@ class ParcVerifier(Verifier):
 class LogicFlowVerifier(Verifier):
     def __init__(
         self,
-        client: OpenaiClient,
+        client: Client,
         constructor_type: str = "targeted",
         prefix: str = "predecessors",
         suffix: str = "successors",

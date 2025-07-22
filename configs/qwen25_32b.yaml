@@ -7,14 +7,13 @@ splits:
   - olympiadbench
   - omnimath
 verifier_type: sequential
-verifier_kwargs: {}
-construction_kwargs: {}
+verifier_kwargs:
+construction_kwargs:
 generation_kwargs:
   temperature: 0.0
-  top_p: 0.8
-  top_k: 1
   max_tokens: 4096
 dataset_path: "/raid/vinh/resources/datasets/ProcessBench"
 sample_size: 250
 use_voting: false
 voting_n: 8
+num_workers: 16
