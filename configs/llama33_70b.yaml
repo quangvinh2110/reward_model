@@ -1,0 +1,27 @@
+api_endpoint: "http://10.254.138.192:9002"
+model: "Meta-Llama-3-70B-Instruct"
+output_dir: "/raid/vinh/resources/results"
+splits:
+  - gsm8k
+  - math
+  - olympiadbench
+  - omnimath
+verifier_type: logicflow
+verifier_kwargs:
+  constructor_type: targeted
+  prefix: predecessors
+  suffix: successors
+  prefix_size: -1
+  suffix_size: 10
+  show_progress: true
+construction_kwargs: {}
+generation_kwargs:
+  temperature: 0.0
+  top_p: 0.8
+  top_k: 1
+  max_tokens: 4096
+dataset_path: "/raid/vinh/resources/datasets/ProcessBench"
+sample_size: 250
+use_voting: false
+voting_n: 8
+enable_thinking: false

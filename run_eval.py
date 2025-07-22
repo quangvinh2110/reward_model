@@ -38,7 +38,6 @@ def load_config(config_path):
     config.setdefault("voting_n", 8)
     config.setdefault("dataset_path", "Qwen/ProcessBench")
     config.setdefault("sample_size", 100)
-    config.setdefault("enable_thinking", False)
     config.setdefault("verifier_kwargs", {})
     config.setdefault("construction_kwargs", {})
     config.setdefault("generation_kwargs", {})
