@@ -16,8 +16,8 @@ from .client import OpenaiClient
 
 def _verify_one_helper(args):
     """Helper function to run _verify_one in multiprocessing."""
-    _verify_one_func, i, sample, generation_kwargs = args
-    return _verify_one_func(i, sample, **generation_kwargs)
+    _verify_one_func, i, sample, construction_kwargs, generation_kwargs = args
+    return _verify_one_func(i, sample, construction_kwargs, generation_kwargs)
 
 
 class Verifier(ABC):
@@ -37,7 +37,7 @@ class Verifier(ABC):
 
     @abstractmethod
     def _verify_one(
-        self, id: int, sample: dict, **generation_kwargs
+        self, id: int, sample: dict, construction_kwargs: dict, generation_kwargs: dict
     ) -> Tuple[int, str]:
         """Verify a single sample (dictionary)."""
         raise NotImplementedError("Subclasses must implement this method")
@@ -46,13 +46,14 @@ class Verifier(ABC):
         self,
         samples: List[dict],
         num_workers: int = 4,
-        **generation_kwargs,
+        construction_kwargs: dict = {},
+        generation_kwargs: dict = {},
     ) -> List[dict]:
         """Verify multiple samples using multiprocessing, or sequentially if num_workers == 1. Returns a list of dicts."""
         if not samples:
             return []
         tasks = [
-            (self._verify_one, i, sample, generation_kwargs)
+            (self._verify_one, i, sample, construction_kwargs, generation_kwargs)
             for i, sample in enumerate(samples)
         ]
         results = []
@@ -77,7 +78,13 @@ class SequentialVerifier(Verifier):
             "/raid/vinh/reward_model/resources/prompt_templates/SEQUENTIAL_VERIFICATION.txt"
         )
 
-    def _verify_one(self, id: int, sample: dict, **generation_kwargs) -> dict:
+    def _verify_one(
+        self,
+        id: int,
+        sample: dict,
+        construction_kwargs: dict = {},
+        generation_kwargs: dict = {},
+    ) -> dict:
         start_time = time.time()
         tagged_steps = "\n".join(
             [
@@ -90,14 +97,13 @@ class SequentialVerifier(Verifier):
         )
         responses = self.client(
             batch_messages=[[{"role": "user", "content": user_input}]],
-            **generation_kwargs,
+            generation_kwargs=generation_kwargs,
         )
-        elapsed = time.time() - start_time
         return {
             "id": id,
             "generated_critique": responses[0],
             "graph": None,
-            "time": elapsed,
+            "time": time.time() - start_time,
         }
 
 
@@ -107,7 +113,13 @@ class StepwiseVerifier(Verifier):
             "/raid/vinh/reward_model/resources/prompt_templates/STEPWISE_VERIFICATION.txt"
         )
 
-    def _verify_one(self, id: int, sample: dict, **generation_kwargs) -> dict:
+    def _verify_one(
+        self,
+        id: int,
+        sample: dict,
+        construction_kwargs: dict = {},
+        generation_kwargs: dict = {},
+    ) -> dict:
         start_time = time.time()
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
         for step_idx in range(len(sample["steps"])):
@@ -122,7 +134,7 @@ class StepwiseVerifier(Verifier):
             )
             step_results = self.client(
                 batch_messages=[[{"role": "user", "content": user_input}]],
-                **generation_kwargs,
+                generation_kwargs=generation_kwargs,
             )[0]
             for result, step_result in zip(results, step_results):
                 result.append(step_result)
@@ -132,35 +144,32 @@ class StepwiseVerifier(Verifier):
             if majority == "0":
                 for result in results:
                     result.append(f"Final answer: \\boxed{{{step_idx}}}")
-                elapsed = time.time() - start_time
                 return {
                     "id": id,
                     "generated_critique": [
                         "<|sep|>".join(result) for result in results
                     ],
                     "graph": None,
-                    "time": elapsed,
+                    "time": time.time() - start_time,
                 }
             if step_idx == sample["label"]:
                 for result in results:
                     result.append(r"Final answer: \\boxed{None}")
-                elapsed = time.time() - start_time
                 return {
                     "id": id,
                     "generated_critique": [
                         "<|sep|>".join(result) for result in results
                     ],
                     "graph": None,
-                    "time": elapsed,
+                    "time": time.time() - start_time,
                 }
         for result in results:
             result.append("Final answer: \\boxed{-1}")
-        elapsed = time.time() - start_time
         return {
             "id": id,
             "generated_critique": ["<|sep|>".join(result) for result in results],
             "graph": None,
-            "time": elapsed,
+            "time": time.time() - start_time,
         }
 
 
@@ -179,7 +188,13 @@ class ParcVerifier(Verifier):
             "/raid/vinh/reward_model/resources/prompt_templates/PERL_VERIFICATION.txt"
         )
 
-    def _verify_one(self, id: int, sample: dict, **generation_kwargs) -> dict:
+    def _verify_one(
+        self,
+        id: int,
+        sample: dict,
+        construction_kwargs: dict = {},
+        generation_kwargs: dict = {},
+    ) -> dict:
         start_time = time.time()
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
         solution_graph = nx.DiGraph()
@@ -193,8 +208,8 @@ class ParcVerifier(Verifier):
                 problem=sample["problem"],
                 solution_graph=solution_graph,
                 target_idx=step_idx,
-                max_window_size=step_idx,
-                **generation_kwargs,
+                construction_kwargs=construction_kwargs,
+                generation_kwargs=generation_kwargs,
             )
             tracked_premises = "\n".join(
                 f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
@@ -210,7 +225,7 @@ class ParcVerifier(Verifier):
             )
             step_results = self.client(
                 batch_messages=[[{"role": "user", "content": user_input}]],
-                **generation_kwargs,
+                generation_kwargs=generation_kwargs,
             )[0]
             for result, step_result in zip(results, step_results):
                 result.append(step_result)
@@ -220,35 +235,32 @@ class ParcVerifier(Verifier):
             if majority == "0":
                 for result in results:
                     result.append(f"Final answer: \\boxed{{{step_idx}}}")
-                elapsed = time.time() - start_time
                 return {
                     "id": id,
                     "generated_critique": [
                         "<|sep|>".join(result) for result in results
                     ],
                     "graph": json.dumps(node_link_data(solution_graph, edges="edges")),
-                    "time": elapsed,
+                    "time": time.time() - start_time,
                 }
             if step_idx == sample["label"]:
                 for result in results:
                     result.append(r"Final answer: \\boxed{None}")
-                elapsed = time.time() - start_time
                 return {
                     "id": id,
                     "generated_critique": [
                         "<|sep|>".join(result) for result in results
                     ],
                     "graph": json.dumps(node_link_data(solution_graph, edges="edges")),
-                    "time": elapsed,
+                    "time": time.time() - start_time,
                 }
         for result in results:
             result.append("Final answer: \\boxed{-1}")
-        elapsed = time.time() - start_time
         return {
             "id": id,
             "generated_critique": ["<|sep|>".join(result) for result in results],
             "graph": json.dumps(node_link_data(solution_graph, edges="edges")),
-            "time": elapsed,
+            "time": time.time() - start_time,
         }
 
 
@@ -257,167 +269,103 @@ class LogicFlowVerifier(Verifier):
         self,
         client: OpenaiClient,
         constructor_type: str = "targeted",
-        level: str = "step",
+        prefix: str = "predecessors",
+        suffix: str = "successors",
+        prefix_size: int = -1,
+        suffix_size: int = 10,
         show_progress: bool = True,
     ):
         super().__init__(client, show_progress)
         self.constructor = AutoConstructor.from_type(constructor_type, client=client)
-        self.level = level
+        self.prefix = prefix
+        self.suffix = suffix
+        self.prefix_size = prefix_size
+        self.suffix_size = suffix_size
 
     def _get_prompt_template(self) -> str:
         return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/STEPWISE_VERIFICATION.txt"
+            "/raid/vinh/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION.txt"
         )
-
-    def _identify_root_nodes(self, graph: nx.DiGraph) -> List[int]:
-        """Identify *root* nodes in the solution graph.
-
-        A node *i* is a root node if **any** of its immediate successors is not
-        *i + 1* (meaning the result of step *i* is reused later in the
-        solution) or if *i* is the final step, or if *i* has two or more
-        predecessors (a synthesis node).
-        """
-        if graph.number_of_nodes() == 0:
-            return []
-
-        root_nodes = set()
-        for node in graph.nodes():
-            succs = list(graph.successors(node))
-            if len(succs) == 0 or any(succ != node + 1 for succ in succs):
-                root_nodes.add(node)
-            # elif graph.in_degree(node) >= 2 or graph.in_degree(node) == 0:
-            #     root_nodes.add(node)
-
-        return sorted(list(root_nodes))
-
-    def _build_subgraph(
-        self, graph: nx.DiGraph, root: int, root_lst: List[int]
-    ) -> nx.DiGraph:
-        """Construct the sub-graph rooted at *root*."""
-        visited = set([root])
-        stack = [root]
-        while stack:
-            current = stack.pop()
-            for pred in graph.predecessors(current):
-                if pred in visited:
-                    continue
-                visited.add(pred)
-                # Stop traversing beyond other root nodes but still keep
-                # them inside the current sub-graph (to provide context).
-                if pred in root_lst and pred != root:
-                    continue
-                stack.append(pred)
-
-        return graph.subgraph(visited).copy()
 
     def _verify_one_step(
         self,
         problem: str,
         solution_graph: nx.DiGraph,
         label: Optional[int] = None,
-        **generation_kwargs,
+        generation_kwargs: dict = {},
     ) -> Tuple[int, str]:
         results = [[] for _ in range(generation_kwargs.get("n", 1))]
-        root_lst = self._identify_root_nodes(solution_graph)
 
-        for root in root_lst:
-            subgraph = self._build_subgraph(solution_graph, root, root_lst)
-            target_step_indices = sorted(
-                [i for i in subgraph.nodes if subgraph.nodes[i]["state"] is None]
-            )
-            tagged_steps = []
-            for i in sorted(solution_graph.nodes):
-                if i in list(subgraph.nodes) or i == max(solution_graph.nodes):
-                    tagged_steps.append(
-                        f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
-                    )
-                elif len(tagged_steps) == 0 or tagged_steps[-1] != "...":
-                    tagged_steps.append("...")
-            tagged_steps = "\n".join(tagged_steps)
-            for step_idx in target_step_indices:
-                user_input = self.prompt_template.format(
-                    problem=problem,
-                    tagged_steps=tagged_steps,
-                    idx=step_idx,
+        for step_idx in sorted(solution_graph.nodes):
+            if self.prefix == "predecessors":
+                prefix_indices = sorted(
+                    list(solution_graph.predecessors(step_idx)), reverse=True
                 )
-                step_results = self.client(
-                    batch_messages=[[{"role": "user", "content": user_input}]],
-                    **generation_kwargs,
-                )[0]
-                for result, step_result in zip(results, step_results):
-                    result.append(step_result)
-                parsed = [parse_from_boxed(step_result) for step_result in step_results]
-                majority, _ = Counter(parsed).most_common(1)[0]
-                if majority == "0":
-                    for result in results:
-                        result.append(f"Final answer: \\boxed{{{step_idx}}}")
-                    return ["<|sep|>".join(result) for result in results]
-                if label is not None and step_idx == label:
-                    for result in results:
-                        result.append(r"Final answer: \boxed{None}")
-                    return ["<|sep|>".join(result) for result in results]
-                solution_graph.nodes[step_idx]["state"] = True
+            elif self.prefix == "sequential":
+                prefix_indices = sorted(
+                    [i for i in (solution_graph.nodes) if i < step_idx], reverse=True
+                )
+            else:
+                raise ValueError(f"Unknown prefix: {self.prefix}")
+            if self.prefix_size > 0:
+                prefix_indices = prefix_indices[: self.prefix_size]
+            if self.suffix == "successors":
+                suffix_indices = sorted(list(solution_graph.successors(step_idx)))
+            elif self.suffix == "none":
+                suffix_indices = []
+            elif self.suffix == "sequential":
+                suffix_indices = sorted(
+                    [i for i in (solution_graph.nodes) if i > step_idx],
+                )
+            else:
+                raise ValueError(f"Unknown suffix: {self.suffix}")
+            if self.suffix_size > 0:
+                suffix_indices = suffix_indices[: self.suffix_size]
 
-        for result in results:
-            result.append("Final answer: \\boxed{-1}")
-        return ["<|sep|>".join(result) for result in results]
-
-    def _verify_one_subgraph(
-        self,
-        problem: str,
-        solution_graph: nx.DiGraph,
-        label: Optional[int] = None,
-        **generation_kwargs,
-    ) -> Tuple[int, str]:
-        results = [[] for _ in range(generation_kwargs.get("n", 1))]
-        root_lst = self._identify_root_nodes(solution_graph)
-
-        for root in root_lst:
-            subgraph = self._build_subgraph(solution_graph, root, root_lst)
-            target_step_indices = sorted(
-                [i for i in subgraph.nodes if subgraph.nodes[i]["state"] is None]
-            )
             tagged_steps = []
             for i in sorted(solution_graph.nodes):
-                if i in list(subgraph.nodes) or i == max(solution_graph.nodes):
+                if i in prefix_indices or i == step_idx or i in suffix_indices:
                     tagged_steps.append(
                         f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
                     )
                 elif len(tagged_steps) == 0 or tagged_steps[-1] != "...":
                     tagged_steps.append("...")
             tagged_steps = "\n".join(tagged_steps)
+
             user_input = self.prompt_template.format(
                 problem=problem,
                 tagged_steps=tagged_steps,
-                indices=", ".join(map(str, target_step_indices)),
+                idx=step_idx,
             )
-            subgraph_results = self.client(
+            step_results = self.client(
                 batch_messages=[[{"role": "user", "content": user_input}]],
-                **generation_kwargs,
+                generation_kwargs=generation_kwargs,
             )[0]
-            for result, subgraph_result in zip(results, subgraph_results):
-                result.append(subgraph_result)
-            parsed = [
-                parse_from_boxed(subgraph_result)
-                for subgraph_result in subgraph_results
-            ]
+            for result, step_result in zip(results, step_results):
+                result.append(step_result)
+            parsed = [parse_from_boxed(step_result) for step_result in step_results]
             majority, _ = Counter(parsed).most_common(1)[0]
-            if majority != "-1":
+            if majority == "0":
                 for result in results:
-                    result.append(f"Final answer: \\boxed{{{majority}}}")
+                    result.append(f"Final answer: \\boxed{{{step_idx}}}")
                 return ["<|sep|>".join(result) for result in results]
-            if label is not None and label in target_step_indices:
+            if label is not None and step_idx == label:
                 for result in results:
                     result.append(r"Final answer: \boxed{None}")
                 return ["<|sep|>".join(result) for result in results]
-            for step_idx in target_step_indices:
-                solution_graph.nodes[step_idx]["state"] = True
+            solution_graph.nodes[step_idx]["state"] = True
 
         for result in results:
             result.append("Final answer: \\boxed{-1}")
         return ["<|sep|>".join(result) for result in results]
 
-    def _verify_one(self, id: int, sample: dict, **generation_kwargs) -> dict:
+    def _verify_one(
+        self,
+        id: int,
+        sample: dict,
+        construction_kwargs: dict = {},
+        generation_kwargs: dict = {},
+    ) -> dict:
         start_time = time.time()
         solution_graph = nx.DiGraph()
         for step_idx in range(len(sample["steps"])):
@@ -431,31 +379,20 @@ class LogicFlowVerifier(Verifier):
         self.constructor(
             problem=sample["problem"],
             solution_graph=solution_graph,
-            max_window_size=10,
-            **generation_kwargs,
+            construction_kwargs=construction_kwargs,
+            generation_kwargs=generation_kwargs,
         )
-        if self.level == "step":
-            generated_critique = self._verify_one_step(
-                problem=sample["problem"],
-                solution_graph=solution_graph,
-                label=sample["label"],
-                **generation_kwargs,
-            )
-        elif self.level == "subgraph":
-            generated_critique = self._verify_one_subgraph(
-                problem=sample["problem"],
-                solution_graph=solution_graph,
-                label=sample["label"],
-                **generation_kwargs,
-            )
-        else:
-            raise ValueError(f"Unknown level: {self.level}")
-        elapsed = time.time() - start_time
+        generated_critique = self._verify_one_step(
+            problem=sample["problem"],
+            solution_graph=solution_graph,
+            label=sample["label"],
+            generation_kwargs=generation_kwargs,
+        )
         return {
             "id": id,
             "generated_critique": generated_critique,
             "graph": json.dumps(node_link_data(solution_graph, edges="edges")),
-            "time": elapsed,
+            "time": time.time() - start_time,
         }
 
 

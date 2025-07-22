@@ -26,7 +26,7 @@ class Client(ABC):
 
     @abstractmethod
     def _format_request_payload(
-        self, messages: List[dict], **generation_kwargs
+        self, messages: List[dict], generation_kwargs: dict
     ) -> dict:
         raise NotImplementedError("Subclass must implement this method")
 
@@ -34,7 +34,7 @@ class Client(ABC):
         self,
         session: aiohttp.ClientSession,
         messages: List[dict],
-        **generation_kwargs,
+        generation_kwargs: dict,
     ) -> List[str]:
         """Generate text for a single prompt.
 
@@ -46,7 +46,7 @@ class Client(ABC):
         Returns:
             List[str]: List of generated text responses
         """
-        data = self._format_request_payload(messages, **generation_kwargs)
+        data = self._format_request_payload(messages, generation_kwargs)
         try:
             async with session.post(
                 self.endpoint, headers=self.headers, json=data, timeout=600000
@@ -64,7 +64,7 @@ class Client(ABC):
         self,
         batch_messages: Iterable[List[dict]],
         progress_bar: bool = False,
-        **generation_kwargs,
+        generation_kwargs: dict = {},
     ) -> List[List[str]]:
         """Generate text for multiple prompts in parallel.
 
@@ -83,7 +83,7 @@ class Client(ABC):
                 for messages in batch_messages:
                     tasks.append(
                         asyncio.ensure_future(
-                            self._agenerate_one(session, messages, **generation_kwargs)
+                            self._agenerate_one(session, messages, generation_kwargs)
                         )
                     )
                 if progress_bar:
@@ -93,7 +93,7 @@ class Client(ABC):
 
         return answers
 
-    def _generate_one(self, messages: List[dict], **generation_kwargs) -> List[str]:
+    def _generate_one(self, messages: List[dict], generation_kwargs: dict) -> List[str]:
         """Generate text for multiple prompts using synchronous interface.
 
         Args:
@@ -103,7 +103,7 @@ class Client(ABC):
         Returns:
             List[str]: List of generated text responses
         """
-        data = self._format_request_payload(messages, **generation_kwargs)
+        data = self._format_request_payload(messages, generation_kwargs)
         resp = requests.request(
             "POST", self.endpoint, headers=self.headers, json=data, timeout=600000
         )
@@ -117,7 +117,7 @@ class Client(ABC):
         self,
         batch_messages: Iterable[List[dict]],
         run_async: bool = False,
-        **generation_kwargs,
+        generation_kwargs: dict = {},
     ) -> List[List[str]]:
         """Generate text for multiple prompts using synchronous interface.
 
@@ -134,12 +134,14 @@ class Client(ABC):
             for mini_batch in batch_iter(batch_messages, batch_size=256):
                 results.extend(
                     asyncio.run(
-                        self._agenerate(messages=mini_batch, **generation_kwargs)
+                        self._agenerate(
+                            messages=mini_batch, generation_kwargs=generation_kwargs
+                        )
                     )
                 )
         else:
             for messages in batch_messages:
-                results.append(self._generate_one(messages, **generation_kwargs))
+                results.append(self._generate_one(messages, generation_kwargs))
         return results
 
 
@@ -165,7 +167,7 @@ class OpenaiClient(Client):
         super().__init__(full_endpoint, model, api_key)
 
     def _format_request_payload(
-        self, messages: List[dict], **generation_kwargs
+        self, messages: List[dict], generation_kwargs: dict
     ) -> dict:
         """Format the request payload for OpenAI API.
 
@@ -202,7 +204,7 @@ class AzureOpenaiClient(Client):
         super().__init__(full_endpoint, model, api_key)
 
     def _format_request_payload(
-        self, messages: List[dict], **generation_kwargs
+        self, messages: List[dict], generation_kwargs: dict
     ) -> dict:
         return {
             "messages": messages,

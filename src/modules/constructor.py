@@ -56,7 +56,7 @@ class TargetedConstructor:
         step_idx: int,
         candidate_idx_list: Optional[List[int]] = None,
         max_window_size: int = 5,
-        **generation_kwargs,
+        generation_kwargs: Optional[dict] = None,
     ):
         if step_idx == 0:
             return
@@ -92,7 +92,7 @@ class TargetedConstructor:
             )
             response = self.client(
                 batch_messages=[[{"role": "user", "content": user_input}]],
-                **generation_kwargs,
+                generation_kwargs=generation_kwargs,
             )[0][0]
             output = parse_from_json(response)
             if "premises" not in output or not output["premises"]:
@@ -110,11 +110,11 @@ class TargetedConstructor:
         problem: str,
         solution_graph: nx.DiGraph,
         target_idx: Optional[int] = None,
-        max_window_size: Optional[int] = None,
-        **generation_kwargs,
+        construction_kwargs: dict = {},
+        generation_kwargs: dict = {},
     ) -> nx.DiGraph:
-        max_window_size = (
-            max_window_size if max_window_size else len(solution_graph.nodes)
+        max_window_size = construction_kwargs.get(
+            "max_window_size", len(solution_graph.nodes)
         )
         generation_kwargs["n"] = 1
         if target_idx:
@@ -123,7 +123,7 @@ class TargetedConstructor:
                 solution_graph=solution_graph,
                 step_idx=target_idx,
                 max_window_size=max_window_size,
-                **generation_kwargs,
+                generation_kwargs=generation_kwargs,
             )
             return solution_graph
         for step_idx in range(len(solution_graph.nodes)):
@@ -132,7 +132,7 @@ class TargetedConstructor:
                 solution_graph=solution_graph,
                 step_idx=step_idx,
                 max_window_size=max_window_size,
-                **generation_kwargs,
+                generation_kwargs=generation_kwargs,
             )
         return solution_graph
 
@@ -153,7 +153,7 @@ class GroupedConstructor:
         problem: str,
         solution_graph: nx.DiGraph,
         group_idx_list: Optional[List[int]] = None,
-        **generation_kwargs,
+        generation_kwargs: dict = {},
     ) -> nx.DiGraph:
         if group_idx_list:
             group_idx_list = sorted(
@@ -171,7 +171,7 @@ class GroupedConstructor:
         )
         response = self.client(
             batch_messages=[[{"role": "user", "content": user_input}]],
-            **generation_kwargs,
+            generation_kwargs=generation_kwargs,
         )[0][0]
         output = parse_from_json(response)
         for step_idx in group_idx_list:
@@ -207,10 +207,12 @@ class HybridConstructor:
         self,
         problem: str,
         solution_graph: nx.DiGraph,
-        max_window_size: int = 5,
-        overlap_size: int = 1,
-        **generation_kwargs,
+        max_window_size: Optional[int] = None,
+        overlap_size: Optional[int] = None,
+        generation_kwargs: dict = {},
     ) -> nx.DiGraph:
+        max_window_size = max_window_size if max_window_size else 5
+        overlap_size = overlap_size if overlap_size else 1
         for group_idx_list in group_index_generator(
             sorted(list(solution_graph.nodes)), max_window_size, overlap_size, False
         ):
@@ -218,7 +220,7 @@ class HybridConstructor:
                 problem=problem,
                 solution_graph=solution_graph,
                 group_idx_list=group_idx_list,
-                **generation_kwargs,
+                generation_kwargs=generation_kwargs,
             )
             remaining_idx_list = [
                 i for i in solution_graph.nodes if i not in group_idx_list
@@ -232,7 +234,7 @@ class HybridConstructor:
                     step_idx=step_idx,
                     candidate_idx_list=remaining_idx_list,
                     max_window_size=max_window_size * 2,
-                    **generation_kwargs,
+                    generation_kwargs=generation_kwargs,
                 )
                 solution_graph.nodes[step_idx]["resolved"] = True
         return solution_graph
@@ -253,7 +255,7 @@ class DacConstructor:
         self,
         problem: str,
         solution_graph: nx.DiGraph,
-        **generation_kwargs,
+        generation_kwargs: dict = {},
     ) -> nx.DiGraph:
         tagged_steps = "\n".join(
             f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
@@ -264,7 +266,7 @@ class DacConstructor:
         )
         response = self.client(
             batch_messages=[[{"role": "user", "content": user_input}]],
-            **generation_kwargs,
+            generation_kwargs=generation_kwargs,
         )[0][0]
         try:
             root_indices = parse_from_json(response)["root_steps"]
@@ -294,7 +296,7 @@ class DacConstructor:
                     step_idx=group_idx_list[i],
                     candidate_idx_list=group_idx_list[:i],
                     max_window_size=len(group_idx_list),
-                    **generation_kwargs,
+                    generation_kwargs=generation_kwargs,
                 )
                 solution_graph.nodes[group_idx_list[i]]["resolved"] = True
         return solution_graph
