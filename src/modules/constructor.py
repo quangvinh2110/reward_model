@@ -3,7 +3,7 @@ import networkx as nx
 from typing import Optional, List
 
 from ..utils.io import read_txt
-from ..utils.data import parse_from_json, to_int
+from ..utils.data import *
 from .client import Client
 
 
@@ -47,6 +47,7 @@ class NullConstructor:
         problem: str,
         solution_graph: nx.DiGraph,
         construction_kwargs: dict = {},
+        generation_kwargs: dict = {},
     ) -> nx.DiGraph:
         return solution_graph
 
@@ -69,7 +70,7 @@ class TargetedConstructor:
         step_idx: int,
         candidate_idx_list: Optional[List[int]] = None,
         max_window_size: int = 5,
-        generation_kwargs: Optional[dict] = None,
+        generation_kwargs: dict = {},
     ):
         if step_idx == 0:
             return
@@ -158,7 +159,7 @@ class GroupedConstructor:
     ):
         self.client = client
         self.prompt_template = read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/GROUPED_TRACKING.txt"
+            "/raid/vinh/reward_model/resources/prompt_templates/GROUPED_TRACKING_V2.txt"
         )
 
     def __call__(
@@ -166,6 +167,7 @@ class GroupedConstructor:
         problem: str,
         solution_graph: nx.DiGraph,
         group_idx_list: Optional[List[int]] = None,
+        construction_kwargs: dict = {},
         generation_kwargs: dict = {},
     ) -> nx.DiGraph:
         if group_idx_list:
@@ -220,8 +222,8 @@ class HybridConstructor:
         self,
         problem: str,
         solution_graph: nx.DiGraph,
-        construction_kwargs: dict = {},
         generation_kwargs: dict = {},
+        construction_kwargs: dict = {},
     ) -> nx.DiGraph:
         max_window_size = construction_kwargs.get("max_window_size", 5)
         overlap_size = construction_kwargs.get("overlap_size", 1)
@@ -252,74 +254,11 @@ class HybridConstructor:
         return solution_graph
 
 
-class DacConstructor:
-    def __init__(
-        self,
-        client: Client,
-    ):
-        self.client = client
-        self.targeted_constructor = TargetedConstructor(client)
-        self.prompt_template = read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/DAC_TRACKING.txt"
-        )
-
-    def __call__(
-        self,
-        problem: str,
-        solution_graph: nx.DiGraph,
-        generation_kwargs: dict = {},
-    ) -> nx.DiGraph:
-        tagged_steps = "\n".join(
-            f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
-            for i in sorted(solution_graph.nodes)
-        )
-        user_input = self.prompt_template.format(
-            problem=problem, tagged_steps=tagged_steps
-        )
-        response = self.client(
-            batch_messages=[[{"role": "user", "content": user_input}]],
-            generation_kwargs=generation_kwargs,
-        )[0][0]
-        try:
-            root_indices = parse_from_json(response)["root_steps"]
-            root_indices = sorted(to_int(i) for i in root_indices)
-            if max(solution_graph.nodes) not in root_indices:
-                root_indices.append(max(solution_graph.nodes))
-            groups = []
-            for i in range(len(root_indices) - 1):
-                group = [
-                    idx
-                    for idx in solution_graph.nodes
-                    if idx >= root_indices[i] and idx <= root_indices[i + 1]
-                ]
-                for root_idx in root_indices[:i]:
-                    group.append(root_idx)
-                group = sorted(group)
-                groups.append(group)
-        except:
-            groups = [sorted(solution_graph.nodes)]
-        for group_idx_list in groups:
-            for i in range(len(group_idx_list)):
-                if solution_graph.nodes[group_idx_list[i]]["resolved"]:
-                    continue
-                self.targeted_constructor._track_one_step(
-                    problem=problem,
-                    solution_graph=solution_graph,
-                    step_idx=group_idx_list[i],
-                    candidate_idx_list=group_idx_list[:i],
-                    max_window_size=len(group_idx_list),
-                    generation_kwargs=generation_kwargs,
-                )
-                solution_graph.nodes[group_idx_list[i]]["resolved"] = True
-        return solution_graph
-
-
 class AutoConstructor:
     TYPE_MAP = {
         "targeted": TargetedConstructor,
         "grouped": GroupedConstructor,
         "hybrid": HybridConstructor,
-        "dac": DacConstructor,
         "null": NullConstructor,
     }
 

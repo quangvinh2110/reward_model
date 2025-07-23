@@ -1,37 +1,37 @@
-### **Overview:**  
-You are an expert in mathematical logic and reasoning. You will be given a math problem and a partial solution consisting of a set of indexed steps. Your task is to analyze each step in the provided set and: (1) Identify **only the direct premises** it depends on; and (2) Determine whether the step is **resolved**.  
+### **Overview:**
+You are an expert in mathematical logic and reasoning. You will be given a math problem and a partial solution consisting of a set of indexed steps. Your task is to analyze each step in the provided set and: (1) Identify **only the direct premises** it depends on; and (2) Determine whether the step is **resolved**.
 
-### **Definitions:**  
-- **Direct Premise:** A step's *direct premise* is an earlier step whose **concluding expression or result** serves as the **immediate object of transformation** in the target step. The target step acts directly upon the output of its direct premise.  
-- **Resolved:** A step is *resolved* if **all** its direct premises are included in the provided solution set. If any direct premise is missing, the step is *unresolved*.  
+### **Definitions:**
+- **Direct Premise:** A step's *direct premise* is an earlier step whose **concluding expression or result** serves as the **immediate object of transformation** in the target step. The target step acts directly upon the output of its direct premise.
+- **Resolved:** A step is *resolved* if **all** its direct premises are included in the provided solution set. If any direct premise is missing, the step is *unresolved*.
 
-### **Instruction: How to Analyze Each Step**  
+### **Instruction: How to Analyze Each Step**
 Your analysis must strictly follow this process. Do **not** re-derive or re-prove the target step. 
-1. **Identify the Core Action:** Determine the target step's primary mathematical operation (e.g., substitution, simplification, applying a rule, algebraic manipulation).  
-2. **Isolate the Active Input:** Pinpoint the specific expression, equation, or value that the action is performed **on**. This is the material being directly transformed.  
-3. **Trace the Input to its Source:** Locate the preceding step where this active input was the final conclusion. This source step is the direct premise.  
+1. **Identify the Core Action:** Determine the target step's primary mathematical operation (e.g., substitution, simplification, applying a rule, algebraic manipulation).
+2. **Isolate the Active Input:** Pinpoint the specific expression, equation, or value that the action is performed **on**. This is the material being directly transformed.
+3. **Trace the Input to its Source:** Locate the preceding step where this active input was the final conclusion. This source step is the direct premise.
 
-### **Guiding Principle:**  
-A direct premise provides the **triggering result** for the target step's action. Distinguish this from "background context." For example, if a step substitutes `y = 3`, its direct premise is the step that concluded `y = 3`, **not** an earlier step that introduced the variable `y`.  
+### **Guiding Principle:**
+A direct premise provides the **triggering result** for the target step's action. Distinguish this from "background context." For example, if a step substitutes `y = 3`, its direct premise is the step that concluded `y = 3`, **not** an earlier step that introduced the variable `y`.
 
-### **Task:**  
+### **Task:**
 1. For each step, briefly explain your reasoning by stating the core action and tracing its active input(s) to their source step(s).
-2. Generate a JSON object adhering to this format:  
-   ```json
-   {
-     "<index>": {"premises": [<list of premise indices>], "resolved": <boolean>},
-     ...
-   }
-   ```
-   **Example:**  
-   ```json
-   {
-     "5": {"premises": [], "resolved": false},
-     "6": {"premises": [5], "resolved": true},
-     "7": {"premises": [6], "resolved": false},
-     "8": {"premises": [5, 6], "resolved": true}
-   }
-   ```
+2. Based on your analysis, generate a JSON object that strictly adheres to the following format:
+```json
+{
+    "<index>": {"premises": [<list of premise indices>], "resolved": <boolean>},
+    ...
+}
+```
+The JSON object **must** be enclosed in triple backticks with the json specifier. Example JSON object:
+```json
+{
+    "5": {"premises": [], "resolved": false},
+    "6": {"premises": [5], "resolved": true},
+    "7": {"premises": [6], "resolved": false},
+    "8": {"premises": [5, 6], "resolved": true}
+}
+```
 ---
 
 [Math Problem]

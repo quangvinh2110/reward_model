@@ -23,7 +23,7 @@ Your analysis must strictly follow this process. Do NOT re-derive or re-prove th
   "resolved": <boolean>
 }}
 ```
-Example JSON object:
+The JSON object **must** be enclosed in triple backticks with the json specifier. Example JSON object:
 ```json
 {{
   "premises": [1, 3],
