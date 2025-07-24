@@ -6,8 +6,7 @@ from collections import Counter
 import networkx as nx
 import time
 import json
-import re
-from networkx.readwrite import node_link_data
+from networkx.readwrite import node_link_data, node_link_graph
 
 from .constructor import AutoConstructor
 from ..utils.io import read_txt
@@ -368,21 +367,24 @@ class LogicFlowVerifier(Verifier):
         generation_kwargs: dict = {},
     ) -> dict:
         start_time = time.time()
-        solution_graph = nx.DiGraph()
-        for step_idx in range(len(sample["steps"])):
-            solution_graph.add_node(
-                step_idx,
-                content=sample["steps"][step_idx],
-                resolved=False,
-                state=None,
+        if "graph" in sample:
+            solution_graph = node_link_graph(json.loads(sample["graph"]), edges="edges")
+        else:
+            solution_graph = nx.DiGraph()
+            for step_idx in range(len(sample["steps"])):
+                solution_graph.add_node(
+                    step_idx,
+                    content=sample["steps"][step_idx],
+                    resolved=False,
+                    state=None,
+                )
+            solution_graph.nodes[0]["resolved"] = True
+            self.constructor(
+                problem=sample["problem"],
+                solution_graph=solution_graph,
+                construction_kwargs=construction_kwargs,
+                generation_kwargs=generation_kwargs,
             )
-        solution_graph.nodes[0]["resolved"] = True
-        self.constructor(
-            problem=sample["problem"],
-            solution_graph=solution_graph,
-            construction_kwargs=construction_kwargs,
-            generation_kwargs=generation_kwargs,
-        )
         generated_critique = self._verify_one_step(
             problem=sample["problem"],
             solution_graph=solution_graph,

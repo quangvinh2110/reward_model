@@ -3,18 +3,11 @@ import random
 from datasets import load_from_disk
 import argparse
 
-# The splits to process
-splits = ["gsm8k", "math", "olympiadbench", "omnimath"]
-input_base = "/raid/vinh/resources/datasets/ProcessBench"
-output_base = "/raid/vinh/resources/datasets/ProcessBench-250"
-
-os.makedirs(output_base, exist_ok=True)
-
 
 def compute_n_verification(example):
     return {
         "n_verification": (
-            example["label"] if example["label"] > 0 else len(example["steps"])
+            example["label"] + 1 if example["label"] >= 0 else len(example["steps"])
         )
     }
 
@@ -71,18 +64,34 @@ if __name__ == "__main__":
         default="uniform",
         help="Sampling strategy: uniform or largest",
     )
+    parser.add_argument(
+        "--num_samples", type=int, default=250, help="Number of samples per split"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed for reproducibility"
+    )
     args = parser.parse_args()
+
+    random.seed(args.seed)
+
+    # The splits to process
+    splits = ["gsm8k", "math", "olympiadbench", "omnimath"]
+    input_base = "/raid/vinh/resources/datasets/ProcessBench"
+    output_base = f"/raid/vinh/resources/datasets/ProcessBench-{args.num_samples}"
+
+    os.makedirs(output_base, exist_ok=True)
 
     for split in splits:
         print(f"Processing {split}...")
         ds_path = os.path.join(input_base, split)
         dataset = load_from_disk(ds_path)
-        if args.mode == "uniform":
-            sampled = sample_uniform(dataset)
-        else:
-            sampled = sample_largest(dataset)
+        sampled = (
+            sample_uniform(dataset, n_samples=args.num_samples)
+            if args.mode == "uniform"
+            else sample_largest(dataset, n_samples=args.num_samples)
+        )
         out_path = os.path.join(output_base, split)
         sampled.save_to_disk(out_path)
         print(f"Saved {split} to {out_path}")
 
-    print("All splits processed and saved to ProcessBench-250.")
+    print(f"All splits processed and saved to {output_base}.")
