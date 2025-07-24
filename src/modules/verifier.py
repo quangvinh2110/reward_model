@@ -6,6 +6,7 @@ from collections import Counter
 import networkx as nx
 import time
 import json
+import re
 from networkx.readwrite import node_link_data
 
 from .constructor import AutoConstructor
@@ -18,6 +19,11 @@ def _verify_one_helper(args):
     """Helper function to run _verify_one in multiprocessing."""
     _verify_one_func, i, sample, construction_kwargs, generation_kwargs = args
     return _verify_one_func(i, sample, construction_kwargs, generation_kwargs)
+
+
+def extract_is_correct(text: str) -> bool:
+    matches = re.search(r'["\']is_correct["\']\s*:\s*(true|false)', text, re.I)
+    return matches.group(1).lower() == "true" if matches else None
 
 
 class Verifier(ABC):
@@ -372,9 +378,9 @@ class LogicFlowVerifier(Verifier):
             )[0]
             for result, step_result in zip(results, step_results):
                 result.append(step_result)
-            parsed = [parse_from_boxed(step_result) for step_result in step_results]
+            parsed = [extract_is_correct(step_result) for step_result in step_results]
             majority, _ = Counter(parsed).most_common(1)[0]
-            if majority == "0":
+            if majority is False:
                 for result in results:
                     result.append(f"Final answer: \\boxed{{{step_idx}}}")
                 return ["<|sep|>".join(result) for result in results]
