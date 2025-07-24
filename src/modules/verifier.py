@@ -21,11 +21,6 @@ def _verify_one_helper(args):
     return _verify_one_func(i, sample, construction_kwargs, generation_kwargs)
 
 
-def extract_is_correct(text: str) -> bool:
-    matches = re.search(r'["\']is_correct["\']\s*:\s*(true|false)', text, re.I)
-    return matches.group(1).lower() == "true" if matches else None
-
-
 class Verifier(ABC):
     def __init__(
         self,
@@ -289,14 +284,9 @@ class LogicFlowVerifier(Verifier):
         super().__init__(client, show_progress)
 
     def _get_prompt_template(self) -> str:
-        if self.suffix == "null":
-            return read_txt(
-                "/raid/vinh/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION_V1.txt"
-            )
-        else:
-            return read_txt(
-                "/raid/vinh/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION.txt"
-            )
+        return read_txt(
+            "/raid/vinh/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION.txt"
+        )
 
     def _verify_one_step(
         self,
@@ -333,54 +323,30 @@ class LogicFlowVerifier(Verifier):
             if self.suffix_size > 0:
                 suffix_indices = suffix_indices[: self.suffix_size]
 
-            # tagged_steps = []
-            # for i in sorted(solution_graph.nodes):
-            #     if i in prefix_indices or i == step_idx or i in suffix_indices:
-            #         tagged_steps.append(
-            #             f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
-            #         )
-            #     elif len(tagged_steps) == 0 or tagged_steps[-1] != "...":
-            #         tagged_steps.append("...")
-            # tagged_steps = "\n".join(tagged_steps)
+            tagged_steps = []
+            for i in sorted(solution_graph.nodes):
+                if i in prefix_indices or i == step_idx or i in suffix_indices:
+                    tagged_steps.append(
+                        f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
+                    )
+                elif len(tagged_steps) == 0 or tagged_steps[-1] != "...":
+                    tagged_steps.append("...")
+            tagged_steps = "\n".join(tagged_steps)
 
-            # user_input = self.prompt_template.format(
-            #     problem=problem,
-            #     tagged_steps=tagged_steps,
-            #     idx=step_idx,
-            # )
-            prefix_steps = "\n".join(
-                f"Step {i}: {solution_graph.nodes[i]['content']}"
-                for i in prefix_indices
+            user_input = self.prompt_template.format(
+                problem=problem,
+                tagged_steps=tagged_steps,
+                idx=step_idx,
             )
-            target_step = (
-                f"Step {step_idx}: {solution_graph.nodes[step_idx]['content']}"
-            )
-            if self.suffix == "null":
-                user_input = self.prompt_template.format(
-                    problem=problem,
-                    prefix_steps=prefix_steps,
-                    target_step=target_step,
-                )
-            else:
-                suffix_steps = "\n".join(
-                    f"Step {i}: {solution_graph.nodes[i]['content']}"
-                    for i in suffix_indices
-                )
-                user_input = self.prompt_template.format(
-                    problem=problem,
-                    prefix_steps=prefix_steps,
-                    suffix_steps=suffix_steps,
-                    target_step=target_step,
-                )
             step_results = self.client(
                 batch_messages=[[{"role": "user", "content": user_input}]],
                 generation_kwargs=generation_kwargs,
             )[0]
             for result, step_result in zip(results, step_results):
                 result.append(step_result)
-            parsed = [extract_is_correct(step_result) for step_result in step_results]
+            parsed = [parse_from_boxed(step_result) for step_result in step_results]
             majority, _ = Counter(parsed).most_common(1)[0]
-            if majority is False:
+            if majority == "0":
                 for result in results:
                     result.append(f"Final answer: \\boxed{{{step_idx}}}")
                 return ["<|sep|>".join(result) for result in results]
