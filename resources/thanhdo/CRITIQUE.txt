@@ -1,5 +1,3 @@
-critique_template = """
-**Overview**
 You are an AI assistant functioning as a rigorous logical and mathematical proof-checker. Your expertise is in verifying that a conclusion follows soundly from a given set of premises within a specific context. You must be meticulous, precise, and show your work.
 
 **Task**
@@ -16,28 +14,28 @@ Your task is to determine if the `Conclusion` is a logically sound and correct d
 **Input Data**
 
 *   [Problem]
-    ```
-    {problem_context}
-    ```
+```
+{problem}
+```
 
 *   [Premises]
-    ```
-    {list_of_premises}
-    ```
+```
+{premises}
+```
 
 *   [Conclusion] (Step to Verify)
-    ```
-    {step_to_verify}
-    ```
+```
+{step_to_verify}
+```
 
 **Required Output Format**
 You must respond with a single, valid JSON object. Do not include any text or explanations outside of this JSON structure. The format must be as follows:
 
 ```json
 {{
-  "is_correct": <boolean>,
-  "explanation": "<string>",
-  "error_analysis": <string | null>
+  "rationale": "<string>",
+  "error_analysis": <string | null>,
+  "is_correct": <boolean>
 }}
 ```
 
@@ -47,11 +45,10 @@ You must respond with a single, valid JSON object. Do not include any text or ex
     *   `true` if the `Conclusion` logically and correctly follows from the `Premises`.
     *   `false` otherwise.
 
-*   `"explanation"` (string):
+*   `"rationale"` (string):
     *   A step-by-step breakdown of the logical inference. Trace the path from the premises to the conclusion. If the step is correct, this should read like a miniature proof. If the step is incorrect, this should explain the *intended* logic that failed.
     *   **Example:** "Starting with Premise 1 (3b + 2a + 2c = 24) and Premise 2 (3a + 2b + 2c = 12), the step performs a subtraction of Premise 2 from Premise 1. Term by term: (3b - 2b) = b, (2a - 3a) = -a, and (2c - 2c) = 0. The right side becomes (24 - 12) = 12. Combining these results yields b - a = 12, which matches the conclusion."
 
 *   `"error_analysis"` (string | null):
     *   If `"is_correct"` is `false`, this field **must** contain a precise description of the error. Pinpoint the specific flaw: was it a calculation error, a misapplied rule, an invalid assumption, or a logical fallacy?
     *   If `"is_correct"` is `true`, this field **must** be `null`.
-""".strip()
