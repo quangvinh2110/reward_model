@@ -114,14 +114,17 @@ def main():
         draft_path = os.path.join(output_dir, f"{split}.draft.jsonl")
         # Read existing draft and collect processed uids
         processed_uids = set()
+        results = []
         if os.path.exists(draft_path):
             with open(draft_path, "r", encoding="utf-8") as f:
                 for line in f:
                     try:
                         d = json.loads(line)
                         processed_uids.add(d["uid"])
+                        results.append(d)
                     except Exception:
                         continue
+        results.sort(key=lambda d: d["uid"])
         # Only process samples whose uid is not in processed_uids
         tasks = [
             (

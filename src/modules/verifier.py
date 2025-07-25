@@ -42,33 +42,7 @@ class Verifier(ABC):
         """Verify a single sample (dictionary)."""
         raise NotImplementedError("Subclasses must implement this method")
 
-    def __call__(
-        self,
-        samples: List[dict],
-        num_workers: int = 4,
-        construction_kwargs: dict = {},
-        generation_kwargs: dict = {},
-    ) -> List[dict]:
-        """Verify multiple samples using multiprocessing, or sequentially if num_workers == 1. Returns a list of dicts."""
-        if not samples:
-            return []
-        tasks = [
-            (self._verify_one, i, sample, construction_kwargs, generation_kwargs)
-            for i, sample in enumerate(samples)
-        ]
-        results = []
-        with Pool(processes=num_workers) as pool:
-            if self.show_progress:
-                results = list(
-                    tqdm(
-                        pool.imap_unordered(_verify_one_helper, tasks),
-                        total=len(tasks),
-                    )
-                )
-            else:
-                results = list(pool.imap_unordered(_verify_one_helper, tasks))
-        results.sort(key=lambda x: x["id"])
-        return results
+    # Remove the __call__ method from Verifier. Only keep _verify_one and related logic.
 
 
 class SequentialVerifier(Verifier):

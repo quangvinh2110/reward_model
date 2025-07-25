@@ -14,6 +14,8 @@ from datetime import datetime
 from src.utils.data import parse_from_boxed
 from src.modules.verifier import AutoVerifier
 from src.modules.client import OpenaiClient
+from multiprocessing import Pool, Manager
+from tqdm import tqdm
 
 os.environ["http_proxy"] = ""
 os.environ["https_proxy"] = ""
@@ -29,27 +31,72 @@ def load_config(config_path):
     else:
         raise ValueError("Config file must be .yaml, .yml, or .json")
     # Set defaults if not present in config
-    if not (config["api_endpoint"] and config["model"]):
+    if not (config.get("api_endpoint") and config.get("model")):
         raise ValueError("api_endpoint and model must be provided in config")
-    config["splits"] = config.get("splits", None) or [
+    config["splits"] = config.get("splits") or [
         "gsm8k",
         "math",
         "olympiadbench",
         "omnimath",
     ]
-    config["verifier_type"] = config.get("verifier_type", None) or "sequential"
-    config["output_dir"] = (
-        config.get("output_dir", None) or "/raid/vinh/resources/results"
+    config["verifier_type"] = config.get("verifier_type") or "sequential"
+    config["output_dir"] = config.get("output_dir") or "/raid/vinh/resources/results"
+    config["cache_dir"] = (
+        config.get("cache_dir") or "/raid/vinh/resources/results/cache"
     )
-    config["use_voting"] = config.get("use_voting", None) or False
-    config["voting_n"] = config.get("voting_n", None) or 8
-    config["dataset_path"] = config.get("dataset_path", None) or "Qwen/ProcessBench"
-    config["sample_size"] = config.get("sample_size", None) or 100
-    config["verifier_kwargs"] = config.get("verifier_kwargs", None) or {}
-    config["construction_kwargs"] = config.get("construction_kwargs", None) or {}
-    config["generation_kwargs"] = config.get("generation_kwargs", None) or {}
-    config["num_workers"] = config.get("num_workers", None) or 16
+    config["use_voting"] = config.get("use_voting") or False
+    config["voting_n"] = config.get("voting_n") or 8
+    config["dataset_path"] = config.get("dataset_path") or "Qwen/ProcessBench"
+    config["sample_size"] = config.get("sample_size") or 100
+    config["verifier_kwargs"] = config.get("verifier_kwargs") or {}
+    config["construction_kwargs"] = config.get("construction_kwargs") or {}
+    config["generation_kwargs"] = config.get("generation_kwargs") or {}
+    config["num_workers"] = config.get("num_workers") or 16
     return config
+
+
+def verify_sample(verifier, sample, config):
+    # Do the verification and post-processing for a single sample
+    result = verifier._verify_one(
+        sample["uid"],
+        sample,
+        config["construction_kwargs"],
+        config["generation_kwargs"],
+    )
+    d = sample.copy()
+    # Post-processing for prediction and match
+    if not config["use_voting"]:
+        pred = parse_from_boxed(result["generated_critique"][0])
+        try:
+            pred = int(pred)
+        except:
+            pred = None
+    else:
+        preds = [parse_from_boxed(e) for e in result["generated_critique"]]
+        preds = [e for e in preds if e is not None]
+        if len(preds) == 0:
+            pred = None
+        else:
+            pred = Counter(preds).most_common(1)[0][0]
+            try:
+                pred = int(pred)
+            except:
+                pred = None
+    d["generated_critique"] = result["generated_critique"]
+    d["graph"] = result["graph"]
+    d["time"] = result["time"]
+    d["prediction"] = pred
+    d["match"] = pred == d["label"]
+    return d
+
+
+def verify_one_helper(args):
+    verifier, sample, config, draft_path, lock = args
+    d = verify_sample(verifier, sample, config)
+    with lock:
+        with open(draft_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(d, ensure_ascii=False) + "\n")
+    return d
 
 
 def main():
@@ -109,51 +156,60 @@ def main():
         else:
             input_data = dataset
 
-        generated_results = verifier(
-            input_data.to_list(),
-            num_workers=config["num_workers"],
-            construction_kwargs=config["construction_kwargs"],
-            generation_kwargs=config["generation_kwargs"],
-        )
-
-        res_data = []
-        for i in range(len(input_data)):
-            d = input_data[i].copy()
-            result = generated_results[i]
-            if not config["use_voting"]:
-                pred = parse_from_boxed(result["generated_critique"][0])
-                try:
-                    pred = int(pred)
-                except:
-                    pred = None
-            else:
-                preds = [parse_from_boxed(e) for e in result["generated_critique"]]
-                preds = [e for e in preds if e is not None]
-                if len(preds) == 0:
-                    pred = None
-                else:
-                    pred = Counter(preds).most_common(1)[0][0]
+        input_data = [dict(sample, uid=i) for i, sample in enumerate(input_data)]
+        # --- Cache logic ---
+        cache_dir = config.get("cache_dir")
+        if not cache_dir:
+            cache_dir = os.path.join(output_dir, "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        draft_path = os.path.join(cache_dir, f"{split}.draft.jsonl")
+        processed_uids = set()
+        if os.path.exists(draft_path):
+            with open(draft_path, "r", encoding="utf-8") as f:
+                for line in f:
                     try:
-                        pred = int(pred)
-                    except:
-                        pred = None
-            d["generated_critique"] = result["generated_critique"]
-            d["graph"] = result["graph"]
-            d["time"] = result["time"]
-            d["prediction"] = pred
-            d["match"] = pred == d["label"]
-            res_data.append(d)
-
+                        d = json.loads(line)
+                        processed_uids.add(d["uid"])
+                    except Exception:
+                        continue
+        # Only process samples whose uid is not in processed_uids
+        manager = Manager()
+        lock = manager.Lock()
+        tasks = [
+            (verifier, sample, config, draft_path, lock)
+            for sample in input_data
+            if sample["uid"] not in processed_uids
+        ]
+        if not tasks:
+            print(f"No new samples to process for {split}.")
+        res_data = []
+        if tasks:
+            with Pool(processes=config["num_workers"]) as pool:
+                res_data.extend(
+                    list(
+                        tqdm(
+                            pool.imap_unordered(verify_one_helper, tasks),
+                            total=len(tasks),
+                        )
+                    )
+                )
+        # --- Aggregate all results from cache for final output ---
+        with open(draft_path, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                    res_data.append(d)
+                except Exception:
+                    continue
+        res_data.sort(key=lambda d: d["uid"])
         error_data = [e for e in res_data if e["label"] != -1]
         correct_data = [e for e in res_data if e["label"] == -1]
-
         with open(os.path.join(output_dir, f"{split}_error.jsonl"), "w") as f:
             for e in error_data:
                 f.write(json.dumps(e) + "\n")
         with open(os.path.join(output_dir, f"{split}_correct.jsonl"), "w") as f:
             for e in correct_data:
                 f.write(json.dumps(e) + "\n")
-
         acc1 = np.mean([e["match"] for e in error_data]) * 100
         acc2 = np.mean([e["match"] for e in correct_data]) * 100
         f1 = 2 * acc1 * acc2 / (acc1 + acc2)
