@@ -107,31 +107,33 @@ def main():
             input_data = dataset.select(range(num_samples))
         else:
             input_data = dataset
+        # Add unique uid to each sample
+        input_data = [dict(sample, uid=i) for i, sample in enumerate(input_data)]
         manager = Manager()
         lock = manager.Lock()
         draft_path = os.path.join(output_dir, f"{split}.draft.jsonl")
-        # Check for existing draft and determine how many samples are already processed
-        start_idx = 0
+        # Read existing draft and collect processed uids
+        processed_uids = set()
         if os.path.exists(draft_path):
             with open(draft_path, "r", encoding="utf-8") as f:
-                for start_idx, _ in enumerate(f, 1):
-                    pass
-        # Only process samples that have not been processed yet
-        if start_idx >= len(input_data):
-            print(
-                f"Draft for {split} already complete with {start_idx} samples. Skipping."
-            )
-            continue
+                for line in f:
+                    try:
+                        d = json.loads(line)
+                        processed_uids.add(d["uid"])
+                    except Exception:
+                        continue
+        # Only process samples whose uid is not in processed_uids
         tasks = [
             (
                 constructor,
-                input_data[i],
+                sample,
                 config["construction_kwargs"],
                 config["generation_kwargs"],
                 draft_path,
                 lock,
             )
-            for i in range(start_idx, len(input_data))
+            for sample in input_data
+            if sample["uid"] not in processed_uids
         ]
         if not tasks:
             print(f"No new samples to process for {split}.")
