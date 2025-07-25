@@ -182,6 +182,7 @@ class OpenaiClient(Client):
             "model": self.model,
             "messages": messages,
             "max_tokens": 1024,
+            "provider": {"quantizations": ["bf16"]},
             **generation_kwargs,
         }
 

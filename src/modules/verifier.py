@@ -49,7 +49,7 @@ class SequentialVerifier(Verifier):
 
     def _get_prompt_template(self) -> str:
         return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/SEQUENTIAL_VERIFICATION.txt"
+            "/home/admin/NLP/reward_model/reward_model/resources/prompt_templates/SEQUENTIAL_VERIFICATION.txt"
         )
 
     def _verify_one(
@@ -84,7 +84,7 @@ class SequentialVerifier(Verifier):
 class StepwiseVerifier(Verifier):
     def _get_prompt_template(self) -> str:
         return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/STEPWISE_VERIFICATION.txt"
+            "/home/admin/NLP/reward_model/reward_model/resources/prompt_templates/STEPWISE_VERIFICATION.txt"
         )
 
     def _verify_one(
@@ -159,7 +159,7 @@ class ParcVerifier(Verifier):
 
     def _get_prompt_template(self) -> str:
         return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/PERL_VERIFICATION.txt"
+            "/home/admin/NLP/reward_model/reward_model/resources/prompt_templates/PARC_VERIFICATION.txt"
         )
 
     def _verify_one(
@@ -258,7 +258,7 @@ class LogicFlowVerifier(Verifier):
 
     def _get_prompt_template(self) -> str:
         return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION.txt"
+            "/home/admin/NLP/reward_model/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION.txt"
         )
 
     def _verify_one_step(

@@ -46,3 +46,7 @@ def to_int(text: Any) -> int:
         return int(text)
     except:
         return -100000
+
+
+def reformat_model_name(model_name: str):
+    return model_name.split("/")[-1]

@@ -11,14 +11,14 @@ import numpy as np
 from collections import Counter
 from datasets import load_from_disk
 from datetime import datetime
-from src.utils.data import parse_from_boxed
+from src.utils.data import parse_from_boxed, reformat_model_name
 from src.modules.verifier import AutoVerifier
 from src.modules.client import OpenaiClient
 from multiprocessing import Pool, Manager
 from tqdm import tqdm
 
-os.environ["http_proxy"] = ""
-os.environ["https_proxy"] = ""
+# os.environ["http_proxy"] = ""
+# os.environ["https_proxy"] = ""
 
 
 def load_config(config_path):
@@ -127,20 +127,12 @@ def main():
 
     current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     for split in config["splits"]:
-        if not config["use_voting"]:
-            output_dir = os.path.join(
-                config["output_dir"],
-                config["model"],
-                config["verifier_type"],
-                current_time,
-            )
-        else:
-            output_dir = os.path.join(
-                config["output_dir"],
-                f"{config['model']}_voting_{config['voting_n']}",
-                config["verifier_type"],
-                current_time,
-            )
+        output_dir = os.path.join(
+            config["output_dir"],
+            reformat_model_name(config["model"]),
+            config["verifier_type"],
+            current_time,
+        )
         os.makedirs(output_dir, exist_ok=True)
 
         with open(os.path.join(output_dir, "config.yaml"), "w") as f:

@@ -60,7 +60,7 @@ class TargetedConstructor:
     ):
         self.client = client
         self.prompt_template = read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/TARGETED_TRACKING_V2.txt"
+            "/home/admin/NLP/reward_model/reward_model/resources/prompt_templates/TARGETED_TRACKING_V2.txt"
         )
 
     def _track_one_step(
@@ -159,7 +159,7 @@ class GroupedConstructor:
     ):
         self.client = client
         self.prompt_template = read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/GROUPED_TRACKING_V2.txt"
+            "/home/admin/NLP/reward_model/reward_model/resources/prompt_templates/GROUPED_TRACKING_V2.txt"
         )
 
     def __call__(
