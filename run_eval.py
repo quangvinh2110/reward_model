@@ -31,22 +31,24 @@ def load_config(config_path):
     # Set defaults if not present in config
     if not (config["api_endpoint"] and config["model"]):
         raise ValueError("api_endpoint and model must be provided in config")
-    config["splits"] = config["splits"] or [
+    config["splits"] = config.get("splits", None) or [
         "gsm8k",
         "math",
         "olympiadbench",
         "omnimath",
     ]
-    config["verifier_type"] = config["verifier_type"] or "sequential"
-    config["output_dir"] = config["output_dir"] or "/raid/vinh/resources/results"
-    config["use_voting"] = config["use_voting"] or False
-    config["voting_n"] = config["voting_n"] or 8
-    config["dataset_path"] = config["dataset_path"] or "Qwen/ProcessBench"
-    config["sample_size"] = config["sample_size"] or 100
-    config["verifier_kwargs"] = config["verifier_kwargs"] or {}
-    config["construction_kwargs"] = config["construction_kwargs"] or {}
-    config["generation_kwargs"] = config["generation_kwargs"] or {}
-    config["num_workers"] = config["num_workers"] or 16
+    config["verifier_type"] = config.get("verifier_type", None) or "sequential"
+    config["output_dir"] = (
+        config.get("output_dir", None) or "/raid/vinh/resources/results"
+    )
+    config["use_voting"] = config.get("use_voting", None) or False
+    config["voting_n"] = config.get("voting_n", None) or 8
+    config["dataset_path"] = config.get("dataset_path", None) or "Qwen/ProcessBench"
+    config["sample_size"] = config.get("sample_size", None) or 100
+    config["verifier_kwargs"] = config.get("verifier_kwargs", None) or {}
+    config["construction_kwargs"] = config.get("construction_kwargs", None) or {}
+    config["generation_kwargs"] = config.get("generation_kwargs", None) or {}
+    config["num_workers"] = config.get("num_workers", None) or 16
     return config
 
 
