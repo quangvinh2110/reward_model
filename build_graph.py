@@ -80,7 +80,6 @@ def main():
     for split in config["splits"]:
         output_dir = os.path.join(
             config["output_dir"],
-            config["model"],
             config.get("constructor_type", "targeted"),
         )
         os.makedirs(output_dir, exist_ok=True)

@@ -15,6 +15,6 @@ generation_kwargs:
   top_k: 1
   max_tokens: 4096
 dataset_path: "/raid/vinh/resources/datasets/ProcessBench"
-sample_size: 250
+sample_size: -1
 use_voting: false
 voting_n: 8
