@@ -4,12 +4,12 @@ import yaml
 import json
 import networkx as nx
 from networkx.readwrite import node_link_data
-from datetime import datetime
 from datasets import load_from_disk
-from utils import write_jsonl
 from src.modules.client import OpenaiClient
 from src.modules.constructor import AutoConstructor
 from datasets import Dataset
+from tqdm import tqdm
+from multiprocessing import Pool
 
 os.environ["http_proxy"] = ""
 os.environ["https_proxy"] = ""
@@ -62,6 +62,16 @@ def build_graph_for_sample(constructor, sample, construction_kwargs, generation_
     )
 
 
+def build_graph_for_sample_helper(args):
+    constructor, sample, construction_kwargs, generation_kwargs = args
+    graph_json = build_graph_for_sample(
+        constructor, sample, construction_kwargs, generation_kwargs
+    )
+    d = sample.copy()
+    d["graph"] = graph_json
+    return d
+
+
 def main():
     if len(sys.argv) != 2:
         print("Usage: python build_graph.py <config.yaml|config.json>")
@@ -93,23 +103,27 @@ def main():
             input_data = dataset.select(range(num_samples))
         else:
             input_data = dataset
-        results = []
-        for i in range(len(input_data)):
-            sample = input_data[i]
-            graph_json = build_graph_for_sample(
+        tasks = [
+            (
                 constructor,
-                sample,
+                input_data[i],
                 config["construction_kwargs"],
                 config["generation_kwargs"],
             )
-            d = sample.copy()
-            d["graph"] = graph_json
-            results.append(d)
+            for i in range(len(input_data))
+        ]
+        with Pool(processes=config["num_workers"]) as pool:
+            results = list(
+                tqdm(
+                    pool.imap_unordered(build_graph_for_sample_helper, tasks),
+                    total=len(tasks),
+                )
+            )
         # Convert results to HuggingFace Dataset and save
         hf_dataset = Dataset.from_list(results)
         hf_dataset.save_to_disk(os.path.join(output_dir, split))
         print(
-            f"Saved HuggingFace dataset for {split} to {os.path.join(output_dir, f'{split}')}"
+            f"Saved HuggingFace dataset for {split} to {os.path.join(output_dir, f'{split}') }"
         )
 
 
