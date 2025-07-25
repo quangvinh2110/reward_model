@@ -9,7 +9,7 @@ from src.modules.client import OpenaiClient
 from src.modules.constructor import AutoConstructor
 from datasets import Dataset
 from tqdm import tqdm
-from multiprocessing import Pool
+from multiprocessing import Pool, Manager
 
 os.environ["http_proxy"] = ""
 os.environ["https_proxy"] = ""
@@ -63,12 +63,16 @@ def build_graph_for_sample(constructor, sample, construction_kwargs, generation_
 
 
 def build_graph_for_sample_helper(args):
-    constructor, sample, construction_kwargs, generation_kwargs = args
+    constructor, sample, construction_kwargs, generation_kwargs, draft_path, lock = args
     graph_json = build_graph_for_sample(
         constructor, sample, construction_kwargs, generation_kwargs
     )
     d = sample.copy()
     d["graph"] = graph_json
+    # Write to JSONL file
+    with lock:
+        with open(draft_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(d, ensure_ascii=False) + "\n")
     return d
 
 
@@ -103,15 +107,35 @@ def main():
             input_data = dataset.select(range(num_samples))
         else:
             input_data = dataset
+        manager = Manager()
+        lock = manager.Lock()
+        draft_path = os.path.join(output_dir, f"{split}.draft.jsonl")
+        # Check for existing draft and determine how many samples are already processed
+        start_idx = 0
+        if os.path.exists(draft_path):
+            with open(draft_path, "r", encoding="utf-8") as f:
+                for start_idx, _ in enumerate(f, 1):
+                    pass
+        # Only process samples that have not been processed yet
+        if start_idx >= len(input_data):
+            print(
+                f"Draft for {split} already complete with {start_idx} samples. Skipping."
+            )
+            continue
         tasks = [
             (
                 constructor,
                 input_data[i],
                 config["construction_kwargs"],
                 config["generation_kwargs"],
+                draft_path,
+                lock,
             )
-            for i in range(len(input_data))
+            for i in range(start_idx, len(input_data))
         ]
+        if not tasks:
+            print(f"No new samples to process for {split}.")
+            continue
         with Pool(processes=config["num_workers"]) as pool:
             results = list(
                 tqdm(
