@@ -156,12 +156,13 @@ def main():
         os.makedirs(cache_dir, exist_ok=True)
         draft_path = os.path.join(cache_dir, f"{split}.draft.jsonl")
         processed_uids = set()
+        res_data = []
         if os.path.exists(draft_path):
             with open(draft_path, "r", encoding="utf-8") as f:
                 for line in f:
                     try:
-                        d = json.loads(line)
-                        processed_uids.add(d["uid"])
+                        sample = json.loads(line)
+                        processed_uids.add(sample["uid"])
                     except Exception:
                         continue
         # Only process samples whose uid is not in processed_uids
@@ -174,7 +175,6 @@ def main():
         ]
         if not tasks:
             print(f"No new samples to process for {split}.")
-        res_data = []
         if tasks:
             with Pool(processes=config["num_workers"]) as pool:
                 res_data.extend(
@@ -185,14 +185,6 @@ def main():
                         )
                     )
                 )
-        # --- Aggregate all results from cache for final output ---
-        with open(draft_path, "r", encoding="utf-8") as f:
-            for line in f:
-                try:
-                    d = json.loads(line)
-                    res_data.append(d)
-                except Exception:
-                    continue
         res_data.sort(key=lambda d: d["uid"])
         error_data = [e for e in res_data if e["label"] != -1]
         correct_data = [e for e in res_data if e["label"] == -1]
