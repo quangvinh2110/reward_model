@@ -287,6 +287,61 @@ class LogicFlowVerifier(Verifier):
             "/raid/vinh/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION.txt"
         )
 
+    def _identify_root_nodes(self, graph: nx.DiGraph) -> List[int]:
+        """Identify *root* nodes in the solution graph.
+
+        A node *i* is a root node if **any** of its immediate successors is not
+        *i + 1* (meaning the result of step *i* is reused later in the
+        solution) or if *i* is the final step, or if *i* has two or more
+        predecessors (a synthesis node).
+        """
+        if graph.number_of_nodes() == 0:
+            return []
+
+        root_nodes = set()
+        for node in graph.nodes():
+            succs = list(graph.successors(node))
+            if len(succs) == 0 or any(succ != node + 1 for succ in succs):
+                root_nodes.add(node)
+            # elif graph.in_degree(node) >= 2 or graph.in_degree(node) == 0:
+            #     root_nodes.add(node)
+        return sorted(list(root_nodes))
+
+    def _build_subgraph(
+        self,
+        graph: nx.DiGraph,
+        target: int,
+        root_lst: List[int],
+        type: str = "backward",
+    ) -> List[int]:
+        """Construct the sub-graph rooted at *root* or traversed from target as described."""
+        visited = set([target])
+        if type == "backward":
+            stack = [target]
+            while stack:
+                current = stack.pop()
+                for pred in graph.predecessors(current):
+                    if pred in visited:
+                        continue
+                    visited.add(pred)
+                    # Stop traversing beyond other root nodes but still keep them inside the current sub-graph (to provide context).
+                    if pred not in root_lst:
+                        stack.append(pred)
+            # All visited nodes are in the subgraph
+        elif type == "forward":
+            current = target
+            while True:
+                next_node = current + 1
+                if next_node in graph.successors(current):
+                    visited.add(next_node)
+                    if next_node in root_lst:
+                        break
+                    current = next_node
+                else:
+                    # Stop if next_node is not a successor or is a root
+                    break
+        return list(visited)
+
     def _verify_one_step(
         self,
         problem: str,
@@ -305,6 +360,14 @@ class LogicFlowVerifier(Verifier):
                 prefix_indices = sorted(
                     [i for i in (solution_graph.nodes) if i < step_idx], reverse=True
                 )
+            elif self.prefix == "subgraph":
+                root_nodes = self._identify_root_nodes(solution_graph)
+                prefix_indices = sorted(
+                    self._build_subgraph(
+                        solution_graph, step_idx, root_nodes, "backward"
+                    ),
+                    reverse=True,
+                )
             else:
                 raise ValueError(f"Unknown prefix: {self.prefix}")
             if self.prefix_size > 0:
@@ -316,6 +379,13 @@ class LogicFlowVerifier(Verifier):
             elif self.suffix == "sequential":
                 suffix_indices = sorted(
                     [i for i in (solution_graph.nodes) if i > step_idx],
+                )
+            elif self.suffix == "subgraph":
+                root_nodes = self._identify_root_nodes(solution_graph)
+                suffix_indices = sorted(
+                    self._build_subgraph(
+                        solution_graph, step_idx, root_nodes, "forward"
+                    ),
                 )
             else:
                 raise ValueError(f"Unknown suffix: {self.suffix}")
