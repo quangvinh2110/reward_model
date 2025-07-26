@@ -40,10 +40,10 @@ def load_config(config_path):
         "omnimath",
     ]
     config["verifier_type"] = config.get("verifier_type") or "sequential"
-    config["output_dir"] = config.get("output_dir") or "/raid/vinh/resources/results"
-    config["cache_dir"] = (
-        config.get("cache_dir") or "/raid/vinh/resources/results/cache"
+    config["output_dir"] = (
+        config.get("output_dir") or "/home/admin/NLP/reward_model/resources/results"
     )
+    config["cache_dir"] = config.get("cache_dir")
     config["use_voting"] = config.get("use_voting") or False
     config["voting_n"] = config.get("voting_n") or 8
     config["dataset_path"] = config.get("dataset_path") or "Qwen/ProcessBench"
@@ -163,6 +163,7 @@ def main():
                     try:
                         sample = json.loads(line)
                         processed_uids.add(sample["uid"])
+                        res_data.append(sample)
                     except Exception:
                         continue
         # Only process samples whose uid is not in processed_uids
@@ -175,7 +176,7 @@ def main():
         ]
         if not tasks:
             print(f"No new samples to process for {split}.")
-        if tasks:
+        else:
             with Pool(processes=config["num_workers"]) as pool:
                 res_data.extend(
                     list(

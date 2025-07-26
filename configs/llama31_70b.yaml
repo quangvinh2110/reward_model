@@ -1,15 +1,15 @@
 api_endpoint: "https://openrouter.ai/api"
-model: "qwen/qwen-2.5-72b-instruct"
+model: "meta-llama/llama-3.1-70b-instruct"
 output_dir: "/home/admin/NLP/reward_model/resources/results"
 cache_dir:
 splits:
   - math
   - olympiadbench
   - omnimath
-verifier_type: "logicflow"
+verifier_type: logicflow
 verifier_kwargs:
   constructor_type: "null"
-  prefix: "predecessors"
+  prefix: predecessors
   suffix: "null"
   prefix_size: -1
   suffix_size: -1
