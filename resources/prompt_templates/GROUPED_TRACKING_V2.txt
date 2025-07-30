@@ -18,19 +18,19 @@ A direct premise provides the **triggering result** for the target step's action
 1. For each step, briefly explain your reasoning by stating the core action and tracing its active input(s) to their source step(s).
 2. Based on your analysis, generate a JSON object that strictly adheres to the following format:
 ```json
-{
-    "<index>": {"premises": [<list of premise indices>], "resolved": <boolean>},
+{{
+    "<index>": {{"premises": [<list of premise indices>], "resolved": <boolean>}},
     ...
-}
+}}
 ```
 The JSON object **must** be enclosed in triple backticks with the json specifier. Example JSON object:
 ```json
-{
-    "5": {"premises": [], "resolved": false},
-    "6": {"premises": [5], "resolved": true},
-    "7": {"premises": [6], "resolved": false},
-    "8": {"premises": [5, 6], "resolved": true}
-}
+{{
+    "5": {{"premises": [], "resolved": false}},
+    "6": {{"premises": [5], "resolved": true}},
+    "7": {{"premises": [6], "resolved": false}},
+    "8": {{"premises": [5, 6], "resolved": true}}
+}}
 ```
 ---
 

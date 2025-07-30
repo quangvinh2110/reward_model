@@ -50,25 +50,29 @@ def build_graph_for_sample(constructor, sample, construction_kwargs, generation_
     for step_idx, step in enumerate(sample["steps"]):
         solution_graph.add_node(step_idx, content=step, resolved=False)
     solution_graph.nodes[0]["resolved"] = True
-    constructor(
+    solution_graph, performance_metrics = constructor(
         problem=sample["problem"],
         solution_graph=solution_graph,
         construction_kwargs=construction_kwargs,
         generation_kwargs=generation_kwargs,
     )
-    return json.dumps(
-        node_link_data(solution_graph, edges="edges"),
-        ensure_ascii=False,
+    return (
+        json.dumps(
+            node_link_data(solution_graph, edges="edges"),
+            ensure_ascii=False,
+        ),
+        performance_metrics,
     )
 
 
 def build_graph_for_sample_helper(args):
     constructor, sample, construction_kwargs, generation_kwargs, draft_path, lock = args
-    graph_json = build_graph_for_sample(
+    graph_json, performance_metrics = build_graph_for_sample(
         constructor, sample, construction_kwargs, generation_kwargs
     )
     d = sample.copy()
     d["graph"] = graph_json
+    d["performance_metrics"] = performance_metrics
     # Write to JSONL file
     with lock:
         with open(draft_path, "a", encoding="utf-8") as f:

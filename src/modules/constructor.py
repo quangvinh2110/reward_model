@@ -1,6 +1,7 @@
 import math
+import time
 import networkx as nx
-from typing import Optional, List
+from typing import Optional, List, Tuple, Dict
 
 from ..utils.io import read_txt
 from ..utils.data import *
@@ -48,8 +49,17 @@ class NullConstructor:
         solution_graph: nx.DiGraph,
         construction_kwargs: dict = {},
         generation_kwargs: dict = {},
-    ) -> nx.DiGraph:
-        return solution_graph
+    ) -> Tuple[nx.DiGraph, Dict]:
+        start_time = time.time()
+        client_calls = 0
+
+        # No client calls for NullConstructor
+        performance_metrics = {
+            "time_seconds": time.time() - start_time,
+            "client_calls": client_calls,
+        }
+
+        return solution_graph, performance_metrics
 
 
 class TargetedConstructor:
@@ -71,11 +81,11 @@ class TargetedConstructor:
         candidate_idx_list: Optional[List[int]] = None,
         max_window_size: int = 5,
         generation_kwargs: dict = {},
-    ):
+    ) -> int:
         if step_idx == 0:
-            return
+            return 0
         if solution_graph.nodes[step_idx]["resolved"]:
-            return
+            return 0
         if candidate_idx_list:
             candidate_idx_list = sorted(
                 i
@@ -85,7 +95,8 @@ class TargetedConstructor:
         else:
             candidate_idx_list = sorted(i for i in solution_graph.nodes if i < step_idx)
         if not candidate_idx_list:
-            return
+            return 0
+        client_calls: int = 0
         for group_idx_list in group_index_generator(
             candidate_idx_list, max_window_size, 0, reverse=True
         ):
@@ -108,6 +119,7 @@ class TargetedConstructor:
                 batch_messages=[[{"role": "user", "content": user_input}]],
                 generation_kwargs=generation_kwargs,
             )[0][0]
+            client_calls += 1
             output = parse_from_json(response)
             if "premises" not in output or not output["premises"]:
                 continue
@@ -118,6 +130,7 @@ class TargetedConstructor:
             if "resolved" in output and output["resolved"]:
                 solution_graph.nodes[step_idx]["resolved"] = True
                 break
+        return client_calls
 
     def __call__(
         self,
@@ -126,29 +139,36 @@ class TargetedConstructor:
         target_idx: Optional[int] = None,
         construction_kwargs: dict = {},
         generation_kwargs: dict = {},
-    ) -> nx.DiGraph:
+    ) -> Tuple[nx.DiGraph, Dict]:
+        start_time = time.time()
+        performance_metrics = {"time_seconds": 0, "client_calls": 0}
+
         max_window_size = construction_kwargs.get(
             "max_window_size", len(solution_graph.nodes)
         )
         generation_kwargs["n"] = 1
         if target_idx:
-            self._track_one_step(
+            client_calls = self._track_one_step(
                 problem=problem,
                 solution_graph=solution_graph,
                 step_idx=target_idx,
                 max_window_size=max_window_size,
                 generation_kwargs=generation_kwargs,
             )
-            return solution_graph
-        for step_idx in range(len(solution_graph.nodes)):
-            self._track_one_step(
-                problem=problem,
-                solution_graph=solution_graph,
-                step_idx=step_idx,
-                max_window_size=max_window_size,
-                generation_kwargs=generation_kwargs,
-            )
-        return solution_graph
+            performance_metrics["client_calls"] = client_calls
+        else:
+            for step_idx in range(len(solution_graph.nodes)):
+                client_calls = self._track_one_step(
+                    problem=problem,
+                    solution_graph=solution_graph,
+                    step_idx=step_idx,
+                    max_window_size=max_window_size,
+                    generation_kwargs=generation_kwargs,
+                )
+                performance_metrics["client_calls"] += client_calls
+
+        performance_metrics["time_seconds"] = time.time() - start_time
+        return solution_graph, performance_metrics
 
 
 class GroupedConstructor:
@@ -162,20 +182,14 @@ class GroupedConstructor:
             "/raid/vinh/reward_model/resources/prompt_templates/GROUPED_TRACKING_V2.txt"
         )
 
-    def __call__(
+    def _track_one_group(
         self,
         problem: str,
         solution_graph: nx.DiGraph,
-        group_idx_list: Optional[List[int]] = None,
-        construction_kwargs: dict = {},
+        group_idx_list: List[int],
         generation_kwargs: dict = {},
-    ) -> nx.DiGraph:
-        if group_idx_list:
-            group_idx_list = sorted(
-                i for i in group_idx_list if i in solution_graph.nodes
-            )
-        else:
-            group_idx_list = sorted(i for i in solution_graph.nodes)
+    ):
+        group_idx_list = sorted(i for i in group_idx_list if i in solution_graph.nodes)
         tagged_steps = "\n".join(
             f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
             for i in group_idx_list
@@ -206,7 +220,40 @@ class GroupedConstructor:
                 and output[str(step_idx)]["resolved"]
             ):
                 solution_graph.nodes[step_idx]["resolved"] = True
-        return solution_graph
+
+    def __call__(
+        self,
+        problem: str,
+        solution_graph: nx.DiGraph,
+        group_idx_list: Optional[List[int]] = None,
+        construction_kwargs: dict = {},
+        generation_kwargs: dict = {},
+    ) -> Tuple[nx.DiGraph, Dict]:
+        max_window_size = construction_kwargs.get("max_window_size", 5)
+        overlap_size = construction_kwargs.get("overlap_size", 1)
+        start_time = time.time()
+        performance_metrics = {"time_seconds": 0, "client_calls": 0}
+        if group_idx_list:
+            self._track_one_group(
+                problem=problem,
+                solution_graph=solution_graph,
+                group_idx_list=group_idx_list,
+                generation_kwargs=generation_kwargs,
+            )
+            performance_metrics["client_calls"] = 1
+        else:
+            for group_idx_list in group_index_generator(
+                sorted(list(solution_graph.nodes)), max_window_size, overlap_size
+            ):
+                self._track_one_group(
+                    problem=problem,
+                    solution_graph=solution_graph,
+                    group_idx_list=group_idx_list,
+                    generation_kwargs=generation_kwargs,
+                )
+                performance_metrics["client_calls"] += 1
+        performance_metrics["time_seconds"] = time.time() - start_time
+        return solution_graph, performance_metrics
 
 
 class HybridConstructor:
@@ -224,25 +271,28 @@ class HybridConstructor:
         solution_graph: nx.DiGraph,
         generation_kwargs: dict = {},
         construction_kwargs: dict = {},
-    ) -> nx.DiGraph:
+    ) -> Tuple[nx.DiGraph, Dict]:
         max_window_size = construction_kwargs.get("max_window_size", 5)
         overlap_size = construction_kwargs.get("overlap_size", 1)
+        start_time = time.time()
+        performance_metrics = {"time_seconds": 0, "client_calls": 0}
         for group_idx_list in group_index_generator(
             sorted(list(solution_graph.nodes)), max_window_size, overlap_size, False
         ):
-            self.grouped_constructor(
+            self.grouped_constructor._track_one_group(
                 problem=problem,
                 solution_graph=solution_graph,
                 group_idx_list=group_idx_list,
                 generation_kwargs=generation_kwargs,
             )
+            performance_metrics["client_calls"] += 1
             remaining_idx_list = [
                 i for i in solution_graph.nodes if i not in group_idx_list
             ]
             for step_idx in group_idx_list:
                 if solution_graph.nodes[step_idx]["resolved"]:
                     continue
-                self.targeted_constructor._track_one_step(
+                client_calls = self.targeted_constructor._track_one_step(
                     problem=problem,
                     solution_graph=solution_graph,
                     step_idx=step_idx,
@@ -250,8 +300,10 @@ class HybridConstructor:
                     max_window_size=max_window_size * 2,
                     generation_kwargs=generation_kwargs,
                 )
+                performance_metrics["client_calls"] += client_calls
                 solution_graph.nodes[step_idx]["resolved"] = True
-        return solution_graph
+        performance_metrics["time_seconds"] = time.time() - start_time
+        return solution_graph, performance_metrics
 
 
 class AutoConstructor:
