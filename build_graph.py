@@ -35,7 +35,7 @@ def load_config(config_path):
     ]
     config["constructor_type"] = config.get("constructor_type", None) or "targeted"
     config["output_dir"] = (
-        config.get("output_dir", None) or "/raid/vinh/resources/datasets"
+        config.get("output_dir", None) or "/your/path/to/resources/datasets"
     )
     config["dataset_path"] = config.get("dataset_path", None) or "Qwen/ProcessBench"
     config["sample_size"] = config.get("sample_size", None) or 100

@@ -76,8 +76,8 @@ if __name__ == "__main__":
 
     # The splits to process
     splits = ["gsm8k", "math", "olympiadbench", "omnimath"]
-    input_base = "/raid/vinh/resources/datasets/ProcessBench"
-    output_base = f"/raid/vinh/resources/datasets/ProcessBench-{args.num_samples}"
+    input_base = "/your/path/to/datasets/ProcessBench"
+    output_base = f"/your/path/to/datasets/ProcessBench-{args.num_samples}"
 
     os.makedirs(output_base, exist_ok=True)
 
