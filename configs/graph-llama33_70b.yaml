@@ -1,9 +1,8 @@
-api_endpoint: "http://10.254.138.192:9002"
-model: "Meta-Llama-3-70B-Instruct"
-dataset_path: "/raid/vinh/resources/datasets/ProcessBench-333"
-output_dir: "/raid/vinh/resources/datasets/ProcessBench-333-graphs"
+api_endpoint: YOUR_API_ENDPOINT
+model: SERVED_MODEL
+dataset_path: YOUR_DATASET_PATH
+output_dir: YOUR_OUTPUT_DIR
 splits:
-  - gsm8k
   - math
   - olympiadbench
   - omnimath

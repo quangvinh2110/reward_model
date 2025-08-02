@@ -39,7 +39,7 @@ def load_config(config_path):
     ]
     config["verifier_type"] = config.get("verifier_type", None) or "sequential"
     config["output_dir"] = (
-        config.get("output_dir", None) or "/raid/vinh/resources/results"
+        config.get("output_dir", None) or "/your/path/to/resources/results"
     )
     config["use_voting"] = config.get("use_voting", None) or False
     config["voting_n"] = config.get("voting_n", None) or 8

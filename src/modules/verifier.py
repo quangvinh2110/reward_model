@@ -74,9 +74,7 @@ class Verifier(ABC):
 class SequentialVerifier(Verifier):
 
     def _get_prompt_template(self) -> str:
-        return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/SEQUENTIAL_VERIFICATION.txt"
-        )
+        return read_txt("/your/path/to/prompt_templates/SEQUENTIAL_VERIFICATION.txt")
 
     def _verify_one(
         self,
@@ -107,163 +105,6 @@ class SequentialVerifier(Verifier):
         }
 
 
-class StepwiseVerifier(Verifier):
-    def _get_prompt_template(self) -> str:
-        return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/STEPWISE_VERIFICATION.txt"
-        )
-
-    def _verify_one(
-        self,
-        id: int,
-        sample: dict,
-        construction_kwargs: dict = {},
-        generation_kwargs: dict = {},
-    ) -> dict:
-        start_time = time.time()
-        results = [[] for _ in range(generation_kwargs.get("n", 1))]
-        for step_idx in range(len(sample["steps"])):
-            tagged_steps = "\n".join(
-                [
-                    f"<step_{i}>\n{step}\n</step_{i}>"
-                    for i, step in enumerate(sample["steps"][: step_idx + 1])
-                ]
-            )
-            user_input = self.prompt_template.format(
-                problem=sample["problem"], tagged_steps=tagged_steps, idx=step_idx
-            )
-            step_results = self.client(
-                batch_messages=[[{"role": "user", "content": user_input}]],
-                generation_kwargs=generation_kwargs,
-            )[0]
-            for result, step_result in zip(results, step_results):
-                result.append(step_result)
-            # Majority voting
-            parsed = [parse_from_boxed(step_result) for step_result in step_results]
-            majority, _ = Counter(parsed).most_common(1)[0]
-            if majority == "0":
-                for result in results:
-                    result.append(f"Final answer: \\boxed{{{step_idx}}}")
-                return {
-                    "id": id,
-                    "generated_critique": [
-                        "<|sep|>".join(result) for result in results
-                    ],
-                    "graph": None,
-                    "time": time.time() - start_time,
-                }
-            if step_idx == sample["label"]:
-                for result in results:
-                    result.append(r"Final answer: \\boxed{None}")
-                return {
-                    "id": id,
-                    "generated_critique": [
-                        "<|sep|>".join(result) for result in results
-                    ],
-                    "graph": None,
-                    "time": time.time() - start_time,
-                }
-        for result in results:
-            result.append("Final answer: \\boxed{-1}")
-        return {
-            "id": id,
-            "generated_critique": ["<|sep|>".join(result) for result in results],
-            "graph": None,
-            "time": time.time() - start_time,
-        }
-
-
-class ParcVerifier(Verifier):
-
-    def __init__(
-        self,
-        client: Client,
-        show_progress: bool = True,
-    ):
-        super().__init__(client, show_progress)
-        self.constructor = AutoConstructor.from_type("targeted", client=client)
-
-    def _get_prompt_template(self) -> str:
-        return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/PERL_VERIFICATION.txt"
-        )
-
-    def _verify_one(
-        self,
-        id: int,
-        sample: dict,
-        construction_kwargs: dict = {},
-        generation_kwargs: dict = {},
-    ) -> dict:
-        start_time = time.time()
-        results = [[] for _ in range(generation_kwargs.get("n", 1))]
-        solution_graph = nx.DiGraph()
-        for step_idx in range(len(sample["steps"])):
-            solution_graph.add_node(
-                step_idx, content=sample["steps"][step_idx], resolved=False
-            )
-        solution_graph.nodes[0]["resolved"] = True
-        for step_idx in range(len(sample["steps"])):
-            self.constructor(
-                problem=sample["problem"],
-                solution_graph=solution_graph,
-                target_idx=step_idx,
-                construction_kwargs=construction_kwargs,
-                generation_kwargs=generation_kwargs,
-            )
-            tracked_premises = "\n".join(
-                f"<step_{i}>\n{solution_graph.nodes[i]['content']}\n</step_{i}>"
-                for i in solution_graph.predecessors(step_idx)
-            )
-            target_step = (
-                f"<step_{step_idx}>\n{sample['steps'][step_idx]}\n</step_{step_idx}>"
-            )
-            user_input = self.prompt_template.format(
-                problem=sample["problem"],
-                tracked_premises=tracked_premises,
-                target_step=target_step,
-            )
-            step_results = self.client(
-                batch_messages=[[{"role": "user", "content": user_input}]],
-                generation_kwargs=generation_kwargs,
-            )[0]
-            for result, step_result in zip(results, step_results):
-                result.append(step_result)
-            # Majority voting
-            parsed = [parse_from_boxed(step_result) for step_result in step_results]
-            majority, _ = Counter(parsed).most_common(1)[0]
-            if majority == "0":
-                for result in results:
-                    result.append(f"Final answer: \\boxed{{{step_idx}}}")
-                return {
-                    "id": id,
-                    "generated_critique": [
-                        "<|sep|>".join(result) for result in results
-                    ],
-                    "graph": json.dumps(node_link_data(solution_graph, edges="edges")),
-                    "time": time.time() - start_time,
-                }
-            if step_idx == sample["label"]:
-                for result in results:
-                    result.append(r"Final answer: \\boxed{None}")
-                return {
-                    "id": id,
-                    "generated_critique": [
-                        "<|sep|>".join(result) for result in results
-                    ],
-                    "graph": json.dumps(node_link_data(solution_graph, edges="edges")),
-                    "time": time.time() - start_time,
-                }
-        for result in results:
-            result.append("Final answer: \\boxed{-1}")
-        return {
-            "id": id,
-            "generated_critique": ["<|sep|>".join(result) for result in results],
-            "graph": json.dumps(node_link_data(solution_graph, edges="edges")),
-            "time": time.time() - start_time,
-        }
-
-
 class LogicFlowVerifier(Verifier):
     def __init__(
         self,
@@ -283,9 +124,7 @@ class LogicFlowVerifier(Verifier):
         super().__init__(client, show_progress)
 
     def _get_prompt_template(self) -> str:
-        return read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/LOGICFLOW_VERIFICATION.txt"
-        )
+        return read_txt("/your/path/to/prompt_templates/LOGICFLOW_VERIFICATION.txt")
 
     def _identify_root_nodes(self, graph: nx.DiGraph) -> List[int]:
         """Identify *root* nodes in the solution graph.

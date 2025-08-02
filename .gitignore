@@ -1,6 +1,7 @@
 resources/data
 resources/datasets
 resources/results
+resources/paper
 .vscode
 ideas/
 test.ipynb

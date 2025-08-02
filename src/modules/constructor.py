@@ -70,7 +70,7 @@ class TargetedConstructor:
     ):
         self.client = client
         self.prompt_template = read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/TARGETED_TRACKING_V2.txt"
+            "/your/path/to/prompt_templates/TARGETED_TRACKING_V2.txt"
         )
 
     def _track_one_step(
@@ -143,8 +143,9 @@ class TargetedConstructor:
         start_time = time.time()
         performance_metrics = {"time_seconds": 0, "client_calls": 0}
 
-        max_window_size = construction_kwargs.get(
-            "max_window_size", len(solution_graph.nodes)
+        max_window_size = construction_kwargs.get("max_window_size")
+        max_window_size = (
+            max_window_size if max_window_size else len(solution_graph.nodes)
         )
         generation_kwargs["n"] = 1
         if target_idx:
@@ -179,7 +180,7 @@ class GroupedConstructor:
     ):
         self.client = client
         self.prompt_template = read_txt(
-            "/raid/vinh/reward_model/resources/prompt_templates/GROUPED_TRACKING_V2.txt"
+            "/your/path/to/prompt_templates/GROUPED_TRACKING_V2.txt"
         )
 
     def _track_one_group(
@@ -229,7 +230,10 @@ class GroupedConstructor:
         construction_kwargs: dict = {},
         generation_kwargs: dict = {},
     ) -> Tuple[nx.DiGraph, Dict]:
-        max_window_size = construction_kwargs.get("max_window_size", 5)
+        max_window_size = construction_kwargs.get("max_window_size")
+        max_window_size = (
+            max_window_size if max_window_size else len(solution_graph.nodes)
+        )
         overlap_size = construction_kwargs.get("overlap_size", 1)
         start_time = time.time()
         performance_metrics = {"time_seconds": 0, "client_calls": 0}
@@ -272,7 +276,8 @@ class HybridConstructor:
         generation_kwargs: dict = {},
         construction_kwargs: dict = {},
     ) -> Tuple[nx.DiGraph, Dict]:
-        max_window_size = construction_kwargs.get("max_window_size", 5)
+        max_window_size = construction_kwargs.get("max_window_size")
+        max_window_size = max_window_size if max_window_size else 5
         overlap_size = construction_kwargs.get("overlap_size", 1)
         start_time = time.time()
         performance_metrics = {"time_seconds": 0, "client_calls": 0}

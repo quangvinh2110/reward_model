@@ -1,7 +1,7 @@
 #!/bin/bash
 export API_KEY=
 
-CONFIG_FILE="/raid/vinh/reward_model/configs/llama33_70b.yaml"
+CONFIG_FILE="/your/path/to/configs/llama33_70b.yaml"
 
 # Run evaluation with config file
-python /raid/vinh/reward_model/run_eval.py $CONFIG_FILE
+python /your/path/to/run_eval.py $CONFIG_FILE

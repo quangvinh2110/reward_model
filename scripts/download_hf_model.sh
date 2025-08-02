@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Default values
-MODEL_NAME="Qwen/Qwen2.5-7B-Instruct"
-OUTPUT_DIR="/absolute/path/to/folder/to/save/model"
-CACHE_DIR="/absolute/path/to/folder/to/cache/model"
+MODEL_NAME="Qwen/Qwen2.5-32B-Instruct"
+OUTPUT_DIR="/your/path/to/folder/to/save/model"
+CACHE_DIR="/your/path/to/folder/to/cache/model"
 
 # Check if model name is provided
 if [ -z "$MODEL_NAME" ]; then
